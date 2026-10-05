@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ReadVerse - Novels, Poetry & Grammar</title>
+  <link rel="stylesheet" href="novel.css" />
+  <link rel="manifest" href="manifest.json" />
+</head>
+
+<body>
+
+  <header class="navbar">
+    <div class="logo" id="nav-home">ReadVerse</div>
+    <nav class="nav-links">
+      <button class="nav-btn active" data-category="all">All</button>
+      <button class="nav-btn" data-category="novel">Novels</button>
+      <button class="nav-btn" data-category="poetry">Poetry</button>
+      <button class="nav-btn" data-category="grammar">Grammar</button>
+    </nav>
+    <button id="theme-toggle" class="icon-btn" aria-label="Toggle Theme">&#9728;</button>
+  </header>
+
+  <main id="catalog-view" class="container">
+    <section class="hero">
+      <h1>Discover Stories, Verse & Master Language</h1>
+      <p>Read free preview chapters or subscribe for full access.</p>
+      <button id="subscribe-btn" class="subscribe-btn">Subscribe for ₦1,000</button>
+    </section>
+
+    <div class="books-grid" id="books-grid"></div>
+  </main>
+
+  <main id="reader-view" class="container hidden">
+    <div class="reader-toolbar">
+      <button id="back-to-catalog" class="btn-secondary">← Catalog</button>
+      <div class="font-controls">
+        <button id="font-decrease" class="btn-sm">A-</button>
+        <span id="font-size-label">18px</span>
+        <button id="font-increase" class="btn-sm">A+</button>
+      </div>
+    </div>
+
+    <div class="reader-header">
+      <h1 id="reader-book-title">Book Title</h1>
+      <p id="reader-section-title"
+        style="text-transform: uppercase; letter-spacing: 2px; color: gray; margin: 5px 0; font-weight: bold;"></p>
+      <h2 id="reader-chapter-title">Chapter 1</h2>
+    </div>
+
+    <div class="chapter-nav" style="margin: 15px 0;">
+      <button id="prev-chapter-btn" class="btn-secondary">← Previous Chapter</button>
+      <button id="next-chapter-btn" class="btn-secondary">Next Chapter →</button>
+    </div>
+
+    <article class="reader-body" id="reader-body">
+      <p>Night fell gently over the quiet town, casting long shadows across the cobbled streets...</p>
+      <p>The wind carried a faint whisper, continuous and steady, as if telling a secret to anyone willing to stop and
+        listen.</p>
+    </article>
+
+    <!-- Page Flipping Navigation -->
+    <div class="page-nav" style="display: flex; justify-content: space-between; margin-top: 15px; margin-bottom: 25px;">
+      <button id="page-left-btn" class="btn-secondary">&larr; Page Left</button>
+      <button id="page-right-btn" class="btn-secondary">Page Right &rarr;</button>
+    </div>
+
+    <div id="paywall-banner" class="paywall-overlay hidden">
+      <div class="paywall-card">
+        <h3>🔒 Premium Chapter Locked</h3>
+        <p>Unlock this chapter and unlimited access to all novels, poems, and grammar guides.</p>
+        <button class="btn-primary" onclick="alert('Redirecting to subscription plan...')">Subscribe to Unlock</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- ... preceding content (<main id="reader-view">) ... -->
+
+  <!-- Paywall Modal Structure -->
+  <div id="paywall-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h2>Unlock Unfinished Works</h2>
+      <p>Access to <strong id="paywall-book-title">this book</strong> requires the ₦1,000 subscription tier.</p>
+      <div class="modal-actions">
+        <button id="modal-pay-btn" class="subscribe-btn">Subscribe for ₦1,000</button>
+        <button id="modal-close-btn" class="btn-secondary" onclick="closePaywallModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://js.paystack.co/v1/inline.js"></script>
+  <script src="novel.js"></script>
+</body>
+
+</html>
