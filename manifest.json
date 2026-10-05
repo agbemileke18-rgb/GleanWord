@@ -2,7 +2,7 @@
     "name": "ReadVerse - Story & Grammar Hub",
     "short_name": "ReadVerse",
     "description": "Read novels, poetry collections, and grammar books offline.",
-    "start_url": "/novel.html",
+    "start_url": "/index.html",
     "display": "standalone",
     "background_color": "#121212",
     "theme_color": "#2563eb",
