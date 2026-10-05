@@ -1,4 +1,4 @@
-const CACHE_NAME = 'readverse-v1';
+const CACHE_NAME = 'readverse-v2';
 const ASSETS_TO_CACHE = [
     '/ReadVerse/',
     '/index.html',

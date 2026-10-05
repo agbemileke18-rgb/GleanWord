@@ -407,19 +407,25 @@ body.dark-mode #theme-toggle svg path {
     -webkit-user-select: none;
 }
 
-html,
-body {
-    width: 100%;
-    max-width: 100vw;
-    overflow-x: hidden;
-    /* Prevents any left-to-right page sliding */
-    touch-action: pan-y;
-    /* Locks touch gestures strictly to vertical scrolling */
-    position: relative;
+/* Lock root elements */
+html, body {
+  width: 100% !important;
+  max-width: 100vw !important;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden !important;
+  touch-action: pan-y !important;
 }
 
-/* Ensure images, text containers, and elements never exceed the viewport width */
-* {
-    box-sizing: border-box;
-    max-width: 100%;
+/* Apply to main app wrapper (replace .container or #app with your main div wrapper) */
+body > *, #app, .container, main {
+  max-width: 100vw !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box;
+}
+
+/* Prevent wide preformatted text or code blocks from stretching the screen */
+p, div, span, pre {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
