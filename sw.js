@@ -1,6 +1,6 @@
 const CACHE_NAME = 'readverse-v1';
 const ASSETS_TO_CACHE = [
-    '/Read-Verse/',
+    '/ReadVerse/',
     '/index.html',
     '/novel.css',
     '/novel.js',
