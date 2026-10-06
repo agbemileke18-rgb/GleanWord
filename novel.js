@@ -129,18 +129,21 @@ function renderCurrentChapter() {
 
     if (chapter.chapter_number <= 4 || chapter.is_free || isSubscribed) {
         readerBody.innerHTML = chapter.content || '<p>No text found in database for this chapter.</p>';
-        if (paywallBanner) paywallBanner.classList.add('hidden');
     } else {
-        // Show locked message in reader
-        readerBody.innerHTML = '<p style="text-align: center; margin-top: 2rem;"><em>This chapter is locked for subscribers only.</em></p>';
+        // Hide the external paywall banner so only one banner renders
+        if (paywallBanner) paywallBanner.classList.add('hidden');
 
-        if (paywallBanner) paywallBanner.classList.remove('hidden');
-
-        const bookTitle = document.getElementById('reader-book-title')?.textContent || 'this book';
-        showPaywallModal(bookTitle);
+        readerBody.innerHTML = `
+      <div class="locked-chapter-banner" style="text-align: center; padding: 3rem 1rem;">
+        <p style="font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem;">🔒 Premium Chapter Locked</p>
+        <p style="margin-bottom: 1.5rem; color: #ccc;">Unlock this chapter and unlimited access to all novels, poems, and grammar guides.</p>
+        <button id="reader-subscribe-btn" style="padding: 16px 36px; font-size: 1.15rem; background-color: #007bff; color: #ffffff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; display: inline-block; box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);">
+          Subscribe for ₦1,000
+        </button>
+      </div>
+    `;
     }
 
-    // Force scroll reset after the browser finishes calculating column layout
     requestAnimationFrame(() => {
         readerBody.scrollLeft = 0;
     });
@@ -489,3 +492,19 @@ if ('serviceWorker' in navigator) {
             .catch((err) => console.error('Service Worker registration failed:', err));
     });
 }
+
+// Route the inline blue reader subscribe button to the working dashboard checkout
+document.addEventListener('click', (e) => {
+    const target = e.target;
+    if (target && (target.id === 'reader-subscribe-btn' || target.innerText?.includes('Subscribe'))) {
+        e.preventDefault();
+
+        // Trigger the working red dashboard button's action
+        const dashboardBtn = document.getElementById('subscribe-btn');
+        if (dashboardBtn) {
+            dashboardBtn.click();
+        } else if (typeof initiateSubscription === 'function') {
+            initiateSubscription();
+        }
+    }
+});

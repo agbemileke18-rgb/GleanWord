@@ -481,36 +481,36 @@ body {
 }
 
 #reader-body {
-  height: 100%;
-  width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  
-  /* CSS Multi-Column Pagination */
-  column-width: 100%;
-  column-gap: 40px;
-  column-fill: auto;
-  
-  box-sizing: border-box;
-  scroll-behavior: smooth;
-  
-  /* PAGE SNAP (Snaps swipes directly to page columns) */
-  scroll-snap-type: x mandatory;
-  scroll-snap-stop: always;
-  
-  /* Hide scrollbars */
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+    height: 100%;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+
+    /* CSS Multi-Column Pagination */
+    column-width: 100%;
+    column-gap: 40px;
+    column-fill: auto;
+
+    box-sizing: border-box;
+    scroll-behavior: smooth;
+
+    /* PAGE SNAP (Snaps swipes directly to page columns) */
+    scroll-snap-type: x mandatory;
+    scroll-snap-stop: always;
+
+    /* Hide scrollbars */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 
 #reader-body::-webkit-scrollbar {
-  display: none;
+    display: none;
 }
 
 /* Enforce snap points and prevent paragraphs from breaking across pages */
-#reader-body > * {
-  scroll-snap-align: start;
-  break-inside: avoid;
+#reader-body>* {
+    scroll-snap-align: start;
+    break-inside: avoid;
 }
 
 /* 4. FIXED BOTTOM NAVIGATION BAR */
@@ -543,4 +543,18 @@ body.dark-mode .chapter-nav,
     /* Dark mode background */
     color: #ffffff !important;
     /* Dark mode text */
+}
+
+#reader-subscribe-btn {
+    transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#reader-subscribe-btn:hover {
+    background-color: #0056b3 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 123, 255, 0.4) !important;
+}
+
+#reader-subscribe-btn:active {
+    transform: translateY(0);
 }
