@@ -46,7 +46,7 @@ body {
 
 .logo {
     font-weight: 700;
-    font-size: 3rem;
+    font-size: 1.4rem;
     cursor: pointer;
     color: var(--accent-color);
 }
