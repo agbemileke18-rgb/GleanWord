@@ -407,25 +407,47 @@ body.dark-mode #theme-toggle svg path {
     -webkit-user-select: none;
 }
 
-/* Lock root elements */
+/* Screen frame locked strictly to device height */
 html, body {
-  width: 100% !important;
-  max-width: 100vw !important;
+  width: 100vw;
+  height: 100vh;
   margin: 0;
   padding: 0;
-  overflow-x: hidden !important;
-  touch-action: pan-y !important;
+  overflow: hidden; /* Completely disables page-level scrolling */
 }
 
-/* Apply to main app wrapper (replace .container or #app with your main div wrapper) */
-body > *, #app, .container, main {
-  max-width: 100vw !important;
-  overflow-x: hidden !important;
+/* Reader container: Auto-paginates long text into full-screen columns */
+.reader-container { /* Replace with your actual text wrapper class/ID */
+  width: 100vw;
+  height: calc(100vh - 60px); /* Subtract header/footer height if you have navigation */
+  padding: 20px;
   box-sizing: border-box;
+
+  /* Transforms vertical text into horizontal screen pages */
+  column-width: calc(100vw - 40px);
+  column-gap: 40px;
+  column-fill: auto;
+
+  /* Horizontal swipe controls */
+  overflow-x: scroll;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Prevent wide preformatted text or code blocks from stretching the screen */
-p, div, span, pre {
-  word-wrap: break-word;
-  overflow-wrap: break-word;
+/* Forces each paragraph to fit within columns without splitting words weirdly */
+.reader-container p {
+  scroll-snap-align: start;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+  break-inside: avoid; /* Prevents a single line of text from getting cut off at the bottom edge */
+}
+
+@media (max-height: 667px) {
+  /* For smaller mobile screens like iPhone SE */
+  .reader-container p {
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
 }
