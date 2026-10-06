@@ -450,82 +450,97 @@ body,
 }
 
 /* Lines 411-417: Lock outer app shell to exact mobile viewport height */
+/* 1. RESTORE DASHBOARD SCROLLING */
 html,
-body,
-#app {
-    width: 100vw;
-    height: 100dvh;
+body {
     margin: 0;
     padding: 0;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
-}
-
-/* Lines 420-436: Middle reader box fills available screen space and enables vertical scroll */
-.reader-container {
-    flex: 1;
-    overflow-y: auto;
+    width: 100%;
     overflow-x: hidden;
-    padding: 16px;
-    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
 }
 
-/* Lines 439-444: Clean paragraph styling (column/snap rules removed) */
-.reader-container p {
-    font-size: 1.05rem;
-    line-height: 1.6;
-    margin-bottom: 1rem;
-}
-
-/* Bottom navigation bar: Anchors left/right buttons to bottom edge */
-.navigation-bar {
-    /* Replace with your actual footer/button container class or ID */
-    flex-shrink: 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 20px;
-    background-color: #ffffff;
-    border-top: 1px solid #eeeeee;
-}
-
-@media (max-height: 667px) {
-
-    /* For smaller mobile screens like iPhone SE */
-    .reader-container p {
-        font-size: 0.95rem;
-        line-height: 1.5;
-    }
-}
-
-/* Lock reader view container to exact device screen height */
+/* 2. FULLSCREEN READER OVERLAY (ACTIVE ONLY WHEN READING) */
 #reader-view {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
-    height: 100dvh;
-    width: 100vw;
-    overflow: hidden;
+    background-color: inherit;
+    color: inherit;
+    z-index: 1000;
     box-sizing: border-box;
 }
 
-/* Allow story text to take up remaining screen space and scroll vertically */
-#reader-body {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: 16px;
-    -webkit-overflow-scrolling: touch;
+#reader-view.hidden {
+    display: none !important;
+    pointer-events: none !important;
 }
 
-/* Fix bottom buttons bar so it remains visible at all times */
+#reader-body {
+  height: 100%;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  
+  /* CSS Multi-Column Pagination */
+  column-width: 100%;
+  column-gap: 40px;
+  column-fill: auto;
+  
+  box-sizing: border-box;
+  scroll-behavior: smooth;
+  
+  /* PAGE SNAP (Snaps swipes directly to page columns) */
+  scroll-snap-type: x mandatory;
+  scroll-snap-stop: always;
+  
+  /* Hide scrollbars */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+#reader-body::-webkit-scrollbar {
+  display: none;
+}
+
+/* Enforce snap points and prevent paragraphs from breaking across pages */
+#reader-body > * {
+  scroll-snap-align: start;
+  break-inside: avoid;
+}
+
+/* 4. FIXED BOTTOM NAVIGATION BAR */
 .chapter-nav {
     flex-shrink: 0;
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 12px 20px;
-    background-color: #ffffff;
-    border-top: 1px solid #eeeeee;
+    background-color: inherit;
+    border-top: 1px solid rgba(128, 128, 128, 0.2);
+    box-sizing: border-box;
+}
+
+/* 5. SMALL SCREEN FONT SCALING */
+@media (max-height: 667px) {
+    #reader-body p {
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+}
+
+/* 4. DARK MODE SUPPORT OVERRIDES */
+body.dark-mode #reader-view,
+body.dark,
+[data-theme="dark"] #reader-view,
+body.dark-mode .chapter-nav,
+[data-theme="dark"] .chapter-nav {
+    background-color: #121212 !important;
+    /* Dark mode background */
+    color: #ffffff !important;
+    /* Dark mode text */
 }

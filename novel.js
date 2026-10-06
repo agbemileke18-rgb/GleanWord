@@ -102,6 +102,7 @@ async function openReaderForWork(work) {
 function renderCurrentChapter() {
     const chapter = currentWorkChapters[currentChapterIndex];
     const readerBody = document.getElementById('reader-body');
+    if (readerBody) readerBody.scrollLeft = 0;
     const paywallBanner = document.getElementById('paywall-banner');
 
     // Safely check for profile without crashing if undeclared
@@ -139,29 +140,41 @@ function renderCurrentChapter() {
         showPaywallModal(bookTitle);
     }
 
-    readerBody.scrollLeft = 0;
-
+    // Force scroll reset after the browser finishes calculating column layout
+    requestAnimationFrame(() => {
+        readerBody.scrollLeft = 0;
+    });
     const prevBtn = document.getElementById('prev-chapter-btn');
     const nextBtn = document.getElementById('next-chapter-btn');
     if (prevBtn) prevBtn.style.display = currentChapterIndex > 0 ? 'inline-block' : 'none';
     if (nextBtn) nextBtn.style.display = currentChapterIndex < currentWorkChapters.length - 1 ? 'inline-block' : 'none';
 }
 
-document.getElementById('prev-chapter-btn')?.addEventListener('click', () => {
-    if (currentChapterIndex > 0) {
-        currentChapterIndex--;
+// Next Chapter Button
+document.getElementById('next-chapter-btn')?.addEventListener('click', () => {
+    if (typeof currentChapterIndex !== 'undefined' && currentChapterIndex < currentWorkChapters.length - 1) {
+        currentChapterIndex++;
         renderCurrentChapter();
-        window.scrollTo(0, 0);
-        document.getElementById('reader-body').scrollLeft = 0;
+
+        // Ensure new chapter opens at Page 1
+        const readerBody = document.getElementById('reader-body');
+        if (readerBody) {
+            setTimeout(() => { readerBody.scrollLeft = 0; }, 20);
+        }
     }
 });
 
-document.getElementById('next-chapter-btn')?.addEventListener('click', () => {
-    if (currentChapterIndex < currentWorkChapters.length - 1) {
-        currentChapterIndex++;
+// Previous Chapter Button
+document.getElementById('prev-chapter-btn')?.addEventListener('click', () => {
+    if (typeof currentChapterIndex !== 'undefined' && currentChapterIndex > 0) {
+        currentChapterIndex--;
         renderCurrentChapter();
-        window.scrollTo(0, 0);
-        document.getElementById('reader-body').scrollLeft = 0;
+
+        // Ensure previous chapter opens at its final page
+        const readerBody = document.getElementById('reader-body');
+        if (readerBody) {
+            setTimeout(() => { readerBody.scrollLeft = readerBody.scrollWidth; }, 20);
+        }
     }
 });
 
@@ -247,75 +260,96 @@ if (lastReadWork !== null && lastReadChapter !== null) {
 
             renderCurrentChapter();
 
-            document.getElementById('reader-body').scrollLeft = 0;
+            document.getElementById('reader-body').scrollTop = 0;
         }
     });
 
     catalogView.prepend(resumeBanner);
 }
 
-document.getElementById('page-right-btn').addEventListener('click', () => {
-    const readerBody = document.getElementById('reader-body');
-    const scrollEnd = readerBody.scrollLeft + readerBody.clientWidth;
+// --- PAGE NAVIGATION BUTTONS ---
 
-    // Check if we are at the very end of the horizontal text
-    // (We use a 5px buffer just in case of sub-pixel rounding)
-    if (Math.ceil(scrollEnd) >= readerBody.scrollWidth - 5) {
-        // We reached the end of the chapter. Trigger the Next Chapter button!
-        document.getElementById('next-chapter-btn').click();
+// Next Page / Next Chapter Button
+document.getElementById('page-right-btn')?.addEventListener('click', () => {
+    const readerBody = document.getElementById('reader-body');
+    if (!readerBody) return;
+
+    const maxScroll = readerBody.scrollWidth - readerBody.clientWidth;
+
+    if (readerBody.scrollLeft >= maxScroll - 30) {
+        document.getElementById('next-chapter-btn')?.click();
     } else {
-        // Otherwise, just flip one page right
-        readerBody.scrollBy({ left: readerBody.clientWidth, behavior: 'smooth' });
+        readerBody.scrollBy({ left: readerBody.clientWidth + 40, behavior: 'smooth' });
     }
 });
 
-document.getElementById('page-left-btn').addEventListener('click', () => {
+// Previous Page / Previous Chapter Button
+document.getElementById('page-left-btn')?.addEventListener('click', () => {
     const readerBody = document.getElementById('reader-body');
+    if (!readerBody) return;
 
-    // Check if we are at the very beginning of the current chapter
-    if (readerBody.scrollLeft <= 0) {
-
-        // Check if there is a previous chapter to go to
-        if (currentChapterIndex > 0) {
+    if (readerBody.scrollLeft <= 30) {
+        if (typeof currentChapterIndex !== 'undefined' && currentChapterIndex > 0) {
             currentChapterIndex--;
-            renderCurrentChapter(); // Loads the previous chapter text
-
-            // We use a tiny 50ms delay to give the browser time to physically 
-            // render the new text before we calculate how long it is.
+            renderCurrentChapter();
             setTimeout(() => {
-                // Instantly snap to the very last page of the new chapter!
-                readerBody.scrollLeft = readerBody.scrollWidth - readerBody.clientWidth;
+                readerBody.scrollLeft = readerBody.scrollWidth;
             }, 50);
         }
-
     } else {
-        // If we aren't on the first page, just flip one page left normally
-        readerBody.scrollBy({ left: -readerBody.clientWidth, behavior: 'smooth' });
+        readerBody.scrollBy({ left: -(readerBody.clientWidth + 40), behavior: 'smooth' });
     }
 });
+
+// --- TOUCH & SWIPE GESTURES ---
 
 let touchStartX = 0;
 let touchEndX = 0;
 
 const readerContainer = document.getElementById('reader-body');
 
-readerContainer.addEventListener('touchstart', (e) => {
-    touchStartX = e.changedTouches[0].screenX;
-}, { passive: true });
+if (readerContainer) {
+    readerContainer.addEventListener('touchstart', (e) => {
+        touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
 
-readerContainer.addEventListener('touchend', (e) => {
-    touchEndX = e.changedTouches[0].screenX;
-    handleSwipeGesture();
-}, { passive: true });
+    readerContainer.addEventListener('touchend', (e) => {
+        touchEndX = e.changedTouches[0].screenX;
+        handleSwipeGesture();
+    }, { passive: true });
+}
 
 function handleSwipeGesture() {
-    const swipeDistance = touchStartX - touchEndX;
-    const minSwipeDistance = 50;
+    const swipeDistanceX = touchEndX - touchStartX;
+    const readerBody = document.getElementById('reader-body');
+    if (!readerBody) return;
 
-    if (swipeDistance > minSwipeDistance) {
-        document.getElementById('page-right-btn').click();
-    } else if (swipeDistance < -minSwipeDistance) {
-        document.getElementById('page-left-btn').click();
+    // Ensure horizontal swipe is intentional (more than 40px)
+    if (Math.abs(swipeDistanceX) > 40) {
+        const maxScroll = readerBody.scrollWidth - readerBody.clientWidth;
+        const currentScroll = readerBody.scrollLeft;
+
+        if (swipeDistanceX < 0) {
+            // Swipe Left -> Next Page OR Next Chapter if on last page
+            if (currentScroll >= maxScroll - 30) {
+                document.getElementById('next-chapter-btn')?.click();
+            } else {
+                readerBody.scrollBy({ left: readerBody.clientWidth + 40, behavior: 'smooth' });
+            }
+        } else if (swipeDistanceX > 0) {
+            // Swipe Right -> Previous Page OR Previous Chapter if on first page
+            if (currentScroll <= 30) {
+                if (typeof currentChapterIndex !== 'undefined' && currentChapterIndex > 0) {
+                    currentChapterIndex--;
+                    renderCurrentChapter();
+                    setTimeout(() => {
+                        readerBody.scrollLeft = readerBody.scrollWidth;
+                    }, 50);
+                }
+            } else {
+                readerBody.scrollBy({ left: -(readerBody.clientWidth + 40), behavior: 'smooth' });
+            }
+        }
     }
 }
 
@@ -418,35 +452,40 @@ function showPaywallModal(bookTitle) {
     modal.classList.add('active'); // or modal.style.display = 'flex';
 }
 
-// Attach event listener inside the Paywall Modal "Unlock Access" button
-document.getElementById('modal-pay-btn').addEventListener('click', () => {
-    closePaywallModal();
-    initiateSubscription(); // Fires Paystack directly from the modal
-});
-
+// Function to display the paywall lock modal
 function showPaywallModal(bookTitle) {
     const modal = document.getElementById('paywall-modal');
-    if (bookTitle) {
-        document.getElementById('paywall-book-title').innerText = bookTitle;
+    if (modal) {
+        const titleEl = document.getElementById('paywall-book-title');
+        if (titleEl) titleEl.innerText = bookTitle;
+        modal.classList.remove('hidden');
+        modal.classList.add('active');
     }
-    modal.classList.remove('hidden');
 }
 
 function closePaywallModal() {
     const modal = document.getElementById('paywall-modal');
-    modal.classList.add('hidden');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('active');
+    }
 }
 
-// Wire the modal pay button to Paystack checkout
-document.getElementById('modal-pay-btn').addEventListener('click', () => {
+// Wire up modal pay button to Paystack checkout
+document.getElementById('modal-pay-btn')?.addEventListener('click', () => {
     closePaywallModal();
-    document.getElementById('subscribe-btn').click(); // Reuses your main subscribe logic
+    if (typeof initiateSubscription === 'function') {
+        initiateSubscription();
+    } else {
+        document.getElementById('subscribe-btn')?.click();
+    }
 });
 
-// if ('serviceWorker' in navigator) {
-//     window.addEventListener('load', () => {
-//         navigator.serviceWorker.register('/sw.js')
-//             .then((reg) => console.log('PWA Service Worker registered:', reg.scope))
-//             .catch((err) => console.error('Service Worker registration failed:', err));
-//     });
-// }
+// Register Service Worker for PWA offline support
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+            .then((reg) => console.log('Service Worker registered:', reg.scope))
+            .catch((err) => console.error('Service Worker registration failed:', err));
+    });
+}
