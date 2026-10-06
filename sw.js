@@ -1,6 +1,6 @@
-const CACHE_NAME = 'readverse-v2';
+const CACHE_NAME = 'gleanword-v2';
 const ASSETS_TO_CACHE = [
-    '/ReadVerse/',
+    '/GleanWord/',
     '/index.html',
     '/novel.css?v=2',
     '/novel.js?v=2',

@@ -1,9 +1,9 @@
 {
-    "name": "ReadVerse - Story & Grammar Hub",
-    "short_name": "ReadVerse",
+    "name": "GleanWord - Story & Grammar Hub",
+    "short_name": "GleanWord",
     "description": "Read novels, poetry collections, and grammar books offline.",
-    "start_url": "/ReadVerse/",
-    "scope": "/ReadVerse/",
+    "start_url": "/GleanWord/",
+    "scope": "/GleanWord/",
     "display": "standalone",
     "background_color": "#121212",
     "theme_color": "#2563eb",

@@ -102,8 +102,8 @@ async function openReaderForWork(work) {
 function renderCurrentChapter() {
     const chapter = currentWorkChapters[currentChapterIndex];
     const readerBody = document.getElementById('reader-body');
-    if (readerBody) readerBody.scrollLeft = 0;
-    const paywallBanner = document.getElementById('paywall-banner');
+    if (!readerBody) return;
+    readerBody.style.scrollBehavior = 'auto'; const paywallBanner = document.getElementById('paywall-banner');
 
     // Safely check for profile without crashing if undeclared
     const isSubscribed = (typeof currentUserProfile !== 'undefined' && currentUserProfile?.is_subscribed) || false;
@@ -144,9 +144,12 @@ function renderCurrentChapter() {
     `;
     }
 
+    // NEW Lines 147 - 150:
+    readerBody.scrollLeft = 0;
     requestAnimationFrame(() => {
-        readerBody.scrollLeft = 0;
+        readerBody.style.scrollBehavior = '';
     });
+
     const prevBtn = document.getElementById('prev-chapter-btn');
     const nextBtn = document.getElementById('next-chapter-btn');
     if (prevBtn) prevBtn.style.display = currentChapterIndex > 0 ? 'inline-block' : 'none';
@@ -158,27 +161,33 @@ document.getElementById('next-chapter-btn')?.addEventListener('click', () => {
     if (typeof currentChapterIndex !== 'undefined' && currentChapterIndex < currentWorkChapters.length - 1) {
         currentChapterIndex++;
         renderCurrentChapter();
-
-        // Ensure new chapter opens at Page 1
-        const readerBody = document.getElementById('reader-body');
-        if (readerBody) {
-            setTimeout(() => { readerBody.scrollLeft = 0; }, 20);
-        }
     }
 });
 
-// Previous Chapter Button
-document.getElementById('prev-chapter-btn')?.addEventListener('click', () => {
+// Function to handle moving to the previous chapter cleanly without dizzying animation
+function goToPreviousChapter() {
+    const readerBody = document.getElementById('reader-body');
+    if (!readerBody) return;
+
     if (typeof currentChapterIndex !== 'undefined' && currentChapterIndex > 0) {
         currentChapterIndex--;
+
+        // Disable smooth scroll for instant positioning at the last page
+        readerBody.style.scrollBehavior = 'auto';
         renderCurrentChapter();
 
-        // Ensure previous chapter opens at its final page
-        const readerBody = document.getElementById('reader-body');
-        if (readerBody) {
-            setTimeout(() => { readerBody.scrollLeft = readerBody.scrollWidth; }, 20);
-        }
+        readerBody.scrollLeft = readerBody.scrollWidth;
+
+        // Restore smooth scrolling for normal page turns
+        requestAnimationFrame(() => {
+            readerBody.style.scrollBehavior = '';
+        });
     }
+}
+
+// Previous Chapter Button Listener
+document.getElementById('prev-chapter-btn')?.addEventListener('click', () => {
+    goToPreviousChapter();
 });
 
 categoryBtns.forEach((btn) => {
@@ -391,6 +400,8 @@ async function grantUserAccess(email) {
         .eq('id', user.id);
 
     if (!error) {
+        localStorage.setItem('isSubscribed', 'true');
+        localStorage.setItem('userEmail', email);
         alert("Subscription successful! You now have access to read unfinished works.");
         window.location.reload(); // Refresh to update unlocked state
     } else {
@@ -399,40 +410,41 @@ async function grantUserAccess(email) {
     }
 }
 
-document.getElementById('subscribe-btn').addEventListener('click', async () => {
+// Unified Subscription Function (Handles Supabase User or Guest Prompt)
+async function initiateSubscription() {
     let userEmail = null;
 
-    // Check if supabase is initialized and try to get active user
+    // 1. Try to get logged-in user email from Supabase
     if (typeof supabase !== 'undefined' && supabase.auth) {
         const { data } = await supabase.auth.getUser();
         userEmail = data?.user?.email;
     }
 
-    // Fallback: If no user is logged in, ask for an email input
+    // 2. Fallback prompt if user is not logged in
     if (!userEmail) {
         userEmail = prompt("Enter your email address to subscribe:");
     }
 
-    // Trigger Paystack if a valid email is present
+    // 3. Launch Paystack if valid email present
     if (userEmail && userEmail.includes('@')) {
         payWithPaystack(userEmail);
     } else if (userEmail !== null) {
         alert("Please enter a valid email address.");
     }
-});
-
-async function initiateSubscription() {
-    const { data: { user }, error } = await supabase.auth.getUser();
-
-    if (error || !user) {
-        alert("Please log in or create an account to subscribe.");
-        // Optional: trigger your login modal here
-        return;
-    }
-
-    // Triggers the Paystack popup with the logged-in user's email
-    payWithPaystack(user.email);
 }
+
+// Single Event Listener for ALL Subscribe Buttons (Dashboard, Sidebar, Reader)
+document.addEventListener('click', (e) => {
+    const target = e.target;
+    if (target && (
+        target.id === 'subscribe-btn' || 
+        target.id === 'sidebar-subscribe-btn' || 
+        target.id === 'reader-subscribe-btn'
+    )) {
+        e.preventDefault();
+        initiateSubscription();
+    }
+});
 
 async function openWorkOrChapter(work) {
     // Check local user status or query Supabase profile
@@ -507,4 +519,80 @@ document.addEventListener('click', (e) => {
             initiateSubscription();
         }
     }
+});
+
+// --- SIDEBAR PROFILE DRAWER CONTROL ---
+
+const sidebarDrawer = document.getElementById('sidebar-drawer');
+const sidebarOverlay = document.getElementById('sidebar-overlay');
+const menuToggleBtn = document.getElementById('menu-toggle-btn');
+const closeDrawerBtn = document.getElementById('close-drawer-btn');
+
+function openDrawer() {
+    sidebarDrawer?.classList.add('open');
+    sidebarOverlay?.classList.add('active');
+    updateDrawerSubscriptionState();
+}
+
+function closeDrawer() {
+    sidebarDrawer?.classList.remove('open');
+    sidebarOverlay?.classList.remove('active');
+}
+
+// Toggle via Hamburger Button and Overlay
+menuToggleBtn?.addEventListener('click', openDrawer);
+closeDrawerBtn?.addEventListener('click', closeDrawer);
+sidebarOverlay?.addEventListener('click', closeDrawer);
+
+// Swipe Right from Left Edge (< 30px) to Open Drawer
+let edgeStartX = 0;
+document.addEventListener('touchstart', (e) => {
+    edgeStartX = e.touches[0].clientX;
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+    const edgeEndX = e.changedTouches[0].clientX;
+    if (edgeStartX < 30 && edgeEndX - edgeStartX > 60) {
+        openDrawer();
+    }
+}, { passive: true });
+
+// Dynamic Subscription & User Email UI Updates
+function updateDrawerSubscriptionState() {
+    const subBtn = document.getElementById('sidebar-subscribe-btn');
+    const emailDisplay = document.getElementById('user-email-display');
+    const isSubscribed = localStorage.getItem('isSubscribed') === 'true';
+    const userEmail = localStorage.getItem('userEmail');
+
+    if (isSubscribed) {
+        if (emailDisplay) {
+            emailDisplay.textContent = userEmail ? userEmail : 'Subscriber';
+        }
+        if (subBtn) {
+            subBtn.textContent = '👑 Premium User';
+            subBtn.classList.add('premium-user');
+            subBtn.onclick = null;
+        }
+    } else {
+        if (emailDisplay) {
+            emailDisplay.textContent = 'Welcome, Reader!';
+        }
+        if (subBtn) {
+            subBtn.textContent = 'Subscribe for ₦1,000';
+            subBtn.classList.remove('premium-user');
+            subBtn.onclick = () => {
+                closeDrawer();
+                if (typeof initiateSubscription === 'function') {
+                    initiateSubscription();
+                }
+            };
+        }
+    }
+}
+
+// Run on page load to restore subscriber UI if returning user
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof updateDrawerSubscriptionState === 'function') {
+    updateDrawerSubscriptionState();
+  }
 });
