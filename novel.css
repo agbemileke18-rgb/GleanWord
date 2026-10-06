@@ -407,41 +407,81 @@ body.dark-mode #theme-toggle svg path {
     -webkit-user-select: none;
 }
 
-/* Screen frame locked strictly to device height */
-html, body {
+/* Lines 411-417: Lock outer app shell to exact mobile viewport height */
+html, body, #app { 
   width: 100vw;
-  height: 100vh;
+  height: 100dvh;
   margin: 0;
   padding: 0;
-  overflow: hidden; /* Completely disables page-level scrolling */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
-/* Reader container: Auto-paginates long text into full-screen columns */
-.reader-container { /* Replace with your actual text wrapper class/ID */
-  width: 100vw;
-  height: calc(100vh - 60px); /* Subtract header/footer height if you have navigation */
-  padding: 20px;
-  box-sizing: border-box;
-
-  /* Transforms vertical text into horizontal screen pages */
-  column-width: calc(100vw - 40px);
-  column-gap: 40px;
-  column-fill: auto;
-
-  /* Horizontal swipe controls */
-  overflow-x: scroll;
-  overflow-y: hidden;
-  scroll-snap-type: x mandatory;
+/* Lines 420-436: Middle reader box fills available screen space and enables vertical scroll */
+.reader-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px;
   -webkit-overflow-scrolling: touch;
 }
 
-/* Forces each paragraph to fit within columns without splitting words weirdly */
+/* Lines 439-444: Clean paragraph styling (column/snap rules removed) */
 .reader-container p {
-  scroll-snap-align: start;
   font-size: 1.05rem;
   line-height: 1.6;
   margin-bottom: 1rem;
-  break-inside: avoid; /* Prevents a single line of text from getting cut off at the bottom edge */
+}
+
+/* Bottom navigation bar: Anchors left/right buttons to bottom edge */
+.navigation-bar { /* Replace with your actual footer/button container class or ID */
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background-color: #ffffff;
+  border-top: 1px solid #eeeeee;
+}
+/* Lines 411-417: Lock outer app shell to exact mobile viewport height */
+html, body, #app { 
+  width: 100vw;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* Lines 420-436: Middle reader box fills available screen space and enables vertical scroll */
+.reader-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Lines 439-444: Clean paragraph styling (column/snap rules removed) */
+.reader-container p {
+  font-size: 1.05rem;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+
+/* Bottom navigation bar: Anchors left/right buttons to bottom edge */
+.navigation-bar { /* Replace with your actual footer/button container class or ID */
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background-color: #ffffff;
+  border-top: 1px solid #eeeeee;
 }
 
 @media (max-height: 667px) {
