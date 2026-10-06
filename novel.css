@@ -408,86 +408,124 @@ body.dark-mode #theme-toggle svg path {
 }
 
 /* Lines 411-417: Lock outer app shell to exact mobile viewport height */
-html, body, #app { 
-  width: 100vw;
-  height: 100dvh;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+html,
+body,
+#app {
+    width: 100vw;
+    height: 100dvh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
 }
 
 /* Lines 420-436: Middle reader box fills available screen space and enables vertical scroll */
 .reader-container {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 16px;
-  -webkit-overflow-scrolling: touch;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* Lines 439-444: Clean paragraph styling (column/snap rules removed) */
 .reader-container p {
-  font-size: 1.05rem;
-  line-height: 1.6;
-  margin-bottom: 1rem;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    margin-bottom: 1rem;
 }
 
 /* Bottom navigation bar: Anchors left/right buttons to bottom edge */
-.navigation-bar { /* Replace with your actual footer/button container class or ID */
-  flex-shrink: 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 20px;
-  background-color: #ffffff;
-  border-top: 1px solid #eeeeee;
+.navigation-bar {
+    /* Replace with your actual footer/button container class or ID */
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background-color: #ffffff;
+    border-top: 1px solid #eeeeee;
 }
+
 /* Lines 411-417: Lock outer app shell to exact mobile viewport height */
-html, body, #app { 
-  width: 100vw;
-  height: 100dvh;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+html,
+body,
+#app {
+    width: 100vw;
+    height: 100dvh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
 }
 
 /* Lines 420-436: Middle reader box fills available screen space and enables vertical scroll */
 .reader-container {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 16px;
-  -webkit-overflow-scrolling: touch;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* Lines 439-444: Clean paragraph styling (column/snap rules removed) */
 .reader-container p {
-  font-size: 1.05rem;
-  line-height: 1.6;
-  margin-bottom: 1rem;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    margin-bottom: 1rem;
 }
 
 /* Bottom navigation bar: Anchors left/right buttons to bottom edge */
-.navigation-bar { /* Replace with your actual footer/button container class or ID */
-  flex-shrink: 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 20px;
-  background-color: #ffffff;
-  border-top: 1px solid #eeeeee;
+.navigation-bar {
+    /* Replace with your actual footer/button container class or ID */
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background-color: #ffffff;
+    border-top: 1px solid #eeeeee;
 }
 
 @media (max-height: 667px) {
-  /* For smaller mobile screens like iPhone SE */
-  .reader-container p {
-    font-size: 0.95rem;
-    line-height: 1.5;
-  }
+
+    /* For smaller mobile screens like iPhone SE */
+    .reader-container p {
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+}
+
+/* Lock reader view container to exact device screen height */
+#reader-view {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    width: 100vw;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+/* Allow story text to take up remaining screen space and scroll vertically */
+#reader-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Fix bottom buttons bar so it remains visible at all times */
+.chapter-nav {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background-color: #ffffff;
+    border-top: 1px solid #eeeeee;
 }
