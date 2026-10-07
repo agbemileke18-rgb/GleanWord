@@ -103,10 +103,13 @@ function renderCurrentChapter() {
     const chapter = currentWorkChapters[currentChapterIndex];
     const readerBody = document.getElementById('reader-body');
     if (!readerBody) return;
-    readerBody.style.scrollBehavior = 'auto'; const paywallBanner = document.getElementById('paywall-banner');
+
+    readerBody.style.scrollBehavior = 'auto';
+    const paywallBanner = document.getElementById('paywallBanner');
 
     // Safely check for profile without crashing if undeclared
-    const isSubscribed = (typeof currentUserProfile !== 'undefined' && currentUserProfile?.is_subscribed) || false;
+    const isSubscribed = (typeof currentUserProfile !== 'undefined' && currentUserProfile?.is_subscribed) || localStorage.getItem('isSubscribed') === 'true';
+
     if (chapter && chapter.work_id) {
         localStorage.setItem('lastReadWork', chapter.work_id);
         localStorage.setItem('lastReadChapterIndex', currentChapterIndex);
@@ -127,29 +130,50 @@ function renderCurrentChapter() {
         }
     }
 
+    // Access check: Free chapter, sample chapter, or subscribed user
     if (chapter.chapter_number <= 4 || chapter.is_free || isSubscribed) {
-        readerBody.innerHTML = chapter.content || '<p>No text found in database for this chapter.</p>';
+        const rawContent = chapter.content || '<p>No text found in database for this chapter.</p>';
+
+        let contentHTML = `
+      <div class="chapter-marker chapter-start">Chapter Begins</div>
+      ${rawContent}
+      <div class="chapter-marker chapter-end">Chapter Ends</div>
+    `;
+
+        if (currentChapterIndex === currentWorkChapters.length - 1) {
+            contentHTML += `
+        <div class="chapter-end-card">
+          <span class="end-icon">📖</span>
+          <h3>You're All Caught Up!</h3>
+          <p>You’ve reached the end of the currently uploaded chapters for this work.</p>
+          <div class="schedule-badge">🗓️ New Chapters Drop Every Saturday</div>
+        </div>
+      `;
+        }
+
+        readerBody.innerHTML = contentHTML;
     } else {
-        // Hide the external paywall banner so only one banner renders
+        // Hide external paywall banner so only one banner renders
         if (paywallBanner) paywallBanner.classList.add('hidden');
 
         readerBody.innerHTML = `
       <div class="locked-chapter-banner" style="text-align: center; padding: 3rem 1rem;">
-        <p style="font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem;">🔒 Premium Chapter Locked</p>
-        <p style="margin-bottom: 1.5rem; color: #ccc;">Unlock this chapter and unlimited access to all novels, poems, and grammar guides.</p>
-        <button id="reader-subscribe-btn" style="padding: 16px 36px; font-size: 1.15rem; background-color: #007bff; color: #ffffff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; display: inline-block; box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);">
+        <p style="font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem;">👑 Premium Chapter</p>
+        <p style="margin-bottom: 1.5rem; color: #ccc;">Unlock this chapter and unlimited access across GleanWord.</p>
+        <button id="reader-subscribe-btn" style="padding: 16px 36px; font-size: 1.15rem; background: #d4af37; color: #000; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
           Subscribe for ₦1,000
         </button>
       </div>
     `;
     }
 
-    // NEW Lines 147 - 150:
+    // Reset scroll position cleanly
     readerBody.scrollLeft = 0;
     requestAnimationFrame(() => {
         readerBody.style.scrollBehavior = '';
     });
 
+    // Update Prev / Next button visibility
     const prevBtn = document.getElementById('prev-chapter-btn');
     const nextBtn = document.getElementById('next-chapter-btn');
     if (prevBtn) prevBtn.style.display = currentChapterIndex > 0 ? 'inline-block' : 'none';
@@ -437,8 +461,8 @@ async function initiateSubscription() {
 document.addEventListener('click', (e) => {
     const target = e.target;
     if (target && (
-        target.id === 'subscribe-btn' || 
-        target.id === 'sidebar-subscribe-btn' || 
+        target.id === 'subscribe-btn' ||
+        target.id === 'sidebar-subscribe-btn' ||
         target.id === 'reader-subscribe-btn'
     )) {
         e.preventDefault();
@@ -592,7 +616,7 @@ function updateDrawerSubscriptionState() {
 
 // Run on page load to restore subscriber UI if returning user
 document.addEventListener('DOMContentLoaded', () => {
-  if (typeof updateDrawerSubscriptionState === 'function') {
-    updateDrawerSubscriptionState();
-  }
+    if (typeof updateDrawerSubscriptionState === 'function') {
+        updateDrawerSubscriptionState();
+    }
 });

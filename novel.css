@@ -748,3 +748,110 @@ body.light-mode .menu-toggle-btn,
         font-size: 0.85rem;
     }
 }
+
+/* Release Schedule End Card */
+.chapter-end-card {
+    margin: 3rem auto 2rem;
+    padding: 1.8rem 1.5rem;
+    background: linear-gradient(145deg, #181824 0%, #101018 100%);
+    border: 1px solid rgba(212, 175, 55, 0.25);
+    /* Subtle gold border */
+    border-radius: 12px;
+    text-align: center;
+    max-width: 520px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.chapter-end-card .end-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.chapter-end-card h3 {
+    font-size: 1.2rem;
+    color: #f3e5ab;
+    /* Soft gold accent */
+    margin-bottom: 0.4rem;
+}
+
+.chapter-end-card p {
+    font-size: 0.95rem;
+    color: #cccccc;
+    line-height: 1.5;
+    margin-bottom: 1rem;
+}
+
+.chapter-end-card .schedule-badge {
+    display: inline-block;
+    padding: 6px 14px;
+    background: rgba(212, 175, 55, 0.12);
+    color: #d4af37;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* Chapter Epigraph & Scene Break Styling */
+.chapter-epigraph {
+    font-style: italic;
+    font-size: 1.05rem;
+    color: #d4af37;
+    /* Gold accent */
+    border-left: 3px solid #d4af37;
+    padding-left: 1rem;
+    margin-bottom: 2rem;
+    line-height: 1.6;
+}
+
+.chapter-divider {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.4), transparent);
+    margin: 2.5rem 0;
+}
+
+/* Chapter Boundary Markers */
+.chapter-marker {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 2.5rem 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2.5px;
+}
+
+.chapter-marker::before,
+.chapter-marker::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px dashed rgba(212, 175, 55, 0.35);
+    /* Subtle gold dashed line */
+}
+
+.chapter-marker::before {
+    margin-right: 1.2rem;
+}
+
+.chapter-marker::after {
+    margin-left: 1.2rem;
+}
+
+/* Start Marker Accent */
+.chapter-marker.chapter-start {
+    color: #d4af37;
+    /* Soft gold text */
+    margin-top: 1rem;
+    margin-bottom: 2rem;
+}
+
+/* End Marker Accent */
+.chapter-marker.chapter-end {
+    color: #8a8a9e;
+    /* Muted slate text */
+    margin-top: 3.5rem;
+    margin-bottom: 2rem;
+}
