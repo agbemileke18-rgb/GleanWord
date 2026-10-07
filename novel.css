@@ -855,3 +855,9 @@ body.light-mode .menu-toggle-btn,
     margin-top: 3.5rem;
     margin-bottom: 2rem;
 }
+
+.italics {
+    font-style: italic;
+    color: #d4af37;
+    /* Gold accent for italics */
+}
