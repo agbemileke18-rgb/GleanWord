@@ -50,13 +50,10 @@ function renderBooksGrid(works) {
         card.className = 'book-card';
         card.onclick = () => openReaderForWork(work);
 
-        // Define a simple placeholder image for works without a cover_url
-        const placeholderImg = '/path/to/your/default-placeholder.png'; // Update this path!
+        const placeholderImg = '/path/to/your/default-placeholder.png'; 
 
-        // Checks for cover_url; uses fallback placeholder if empty
         const imageSource = work.cover_url || placeholderImg;
 
-        // The innerHTML is NOW ONLY THE IMAGE
         card.innerHTML = `<img src="${imageSource}" alt="${escapeHtml(work.title)}" class="book-cover-img">`;
 
         booksGrid.appendChild(card);
@@ -107,7 +104,6 @@ function renderCurrentChapter() {
     readerBody.style.scrollBehavior = 'auto';
     const paywallBanner = document.getElementById('paywallBanner');
 
-    // Safely check for profile without crashing if undeclared
     const isSubscribed = (typeof currentUserProfile !== 'undefined' && currentUserProfile?.is_subscribed) || localStorage.getItem('isSubscribed') === 'true';
 
     if (chapter && chapter.work_id) {
@@ -131,7 +127,7 @@ function renderCurrentChapter() {
     }
 
     // Access check: Free chapter, sample chapter, or subscribed user
-    if (chapter.chapter_number <= 4 || chapter.is_free || isSubscribed) {
+    if (chapter.chapter_number <= 3 || chapter.is_free || isSubscribed) {
         const rawContent = chapter.content || '<p>No text found in database for this chapter.</p>';
 
         let contentHTML = `
