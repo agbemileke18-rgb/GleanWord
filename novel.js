@@ -113,7 +113,7 @@ function renderCurrentChapter() {
 
     const sectionElement = document.getElementById('reader-section-title');
     if (sectionElement) {
-        sectionElement.textContent = chapter.section_title ? chapter.section_title : '';
+        sectionElement.textContent = chapter?.section_title || '';
     }
 
     const chapterTitleEl = document.getElementById('reader-chapter-title');
@@ -570,36 +570,58 @@ document.addEventListener('touchend', (e) => {
 }, { passive: true });
 
 // Dynamic Subscription & User Email UI Updates
-function updateDrawerSubscriptionState() {
-    const subBtn = document.getElementById('sidebar-subscribe-btn');
-    const emailDisplay = document.getElementById('user-email-display');
-    const isSubscribed = localStorage.getItem('isSubscribed') === 'true';
-    const userEmail = localStorage.getItem('userEmail');
+async function updateDrawerSubscriptionState() {
+  const subBtn = document.getElementById('sidebar-subscribe-btn');
+  const emailDisplay = document.getElementById('user-email-display');
 
-    if (isSubscribed) {
-        if (emailDisplay) {
-            emailDisplay.textContent = userEmail ? userEmail : 'Subscriber';
-        }
-        if (subBtn) {
-            subBtn.textContent = '👑 Premium User';
-            subBtn.classList.add('premium-user');
-            subBtn.onclick = null;
-        }
-    } else {
-        if (emailDisplay) {
-            emailDisplay.textContent = 'Welcome, Reader!';
-        }
-        if (subBtn) {
-            subBtn.textContent = 'Subscribe for ₦1,000';
-            subBtn.classList.remove('premium-user');
-            subBtn.onclick = () => {
-                closeDrawer();
-                if (typeof initiateSubscription === 'function') {
-                    initiateSubscription();
-                }
-            };
-        }
+  // 1. Fetch current active session directly from Supabase
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  
+  let isSubscribed = false;
+  let userEmail = '';
+
+  if (session?.user) {
+    userEmail = session.user.email;
+    
+    // 2. Query database profile for subscription flag
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('is_subscribed')
+      .eq('id', session.user.id)
+      .single();
+
+    isSubscribed = profile?.is_subscribed || false;
+
+    // Optional: Sync localStorage for offline access
+    localStorage.setItem('userEmail', userEmail);
+    localStorage.setItem('isSubscribed', isSubscribed ? 'true' : 'false');
+  }
+
+  // 3. Update Drawer UI based on verified status
+  if (isSubscribed) {
+    if (emailDisplay) {
+      emailDisplay.textContent = userEmail;
     }
+    if (subBtn) {
+      subBtn.textContent = '👑 Premium User';
+      subBtn.classList.add('premium-user');
+      subBtn.onclick = null; // Disable trigger for active subscribers
+    }
+  } else {
+    if (emailDisplay) {
+      emailDisplay.textContent = session?.user ? userEmail : 'Welcome, Reader!';
+    }
+    if (subBtn) {
+      subBtn.textContent = 'Subscribe for ₦1,000';
+      subBtn.classList.remove('premium-user');
+      subBtn.onclick = () => {
+        closeDrawer();
+        if (typeof initiateSubscription === 'function') {
+          initiateSubscription();
+        }
+      };
+    }
+  }
 }
 
 // Run on page load to restore subscriber UI if returning user
@@ -608,36 +630,45 @@ document.addEventListener('DOMContentLoaded', () => {
         updateDrawerSubscriptionState();
     }
 });
-
 async function sendMagicLink(userEmail) {
-    const { data, error } = await supabaseClient.auth.signInWithOtp({
-        email: userEmail,
-        options: {
-            // Redirects user back to the exact page they were reading
-            emailRedirectTo: 'https://agbemileke18-rgb.github.io/GleanWord/',
-            shouldCreateUser: true
-        },
-    });
+    try {
+        // 1. Clear any existing active session from localStorage
+        await supabaseClient.auth.signOut();
 
-    if (error) {
-        alert('Error sending magic link: ' + error.message);
+        // 2. Send the fresh OTP/Magic Link
+        const { data, error } = await supabaseClient.auth.signInWithOtp({
+            email: userEmail,
+            options: {
+                emailRedirectTo: 'https://agbemileke18-rgb.github.io/GleanWord/',
+                shouldCreateUser: true
+            }
+        });
+
+        if (error) throw error;
+
+        alert(`A magic login link has been sent to ${userEmail}. Check your inbox!`);
+        return true;
+    } catch (err) {
+        alert(`Error: ${err.message}`);
         return false;
     }
-
-    alert(`A magic login link has been sent to ${userEmail}. Check your inbox!`);
-    return true;
 }
 
-// Listen for login events (e.g., when returning from Magic Link)
-supabaseClient.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_IN' && session) {
-        console.log('User signed in successfully:', session.user.email);
-
-        // Automatically re-render current chapter to reveal content
-        if (typeof renderCurrentChapter === 'function') {
-            renderCurrentChapter();
-        }
+// Listen for login events (e.g., returning from Magic Link redirect)
+supabaseClient.auth.onAuthStateChange(async (event, session) => {
+  if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+    console.log('User signed in successfully:', session.user.email);
+    
+    // 1. Refresh drawer header and button state
+    if (typeof updateDrawerSubscriptionState === 'function') {
+      await updateDrawerSubscriptionState();
     }
+
+    // 2. Re-render current chapter to reveal subscriber content
+    if (typeof renderCurrentChapter === 'function') {
+      renderCurrentChapter();
+    }
+  }
 });
 
 async function handleSubscriptionFlow(userEmail) {
