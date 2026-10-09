@@ -622,6 +622,48 @@ async function updateDrawerSubscriptionState() {
       };
     }
   }
+  renderSignOutButton(Boolean(session?.user));
+}
+
+// Dynamic Sign Out / Log In Button Handler
+function renderSignOutButton(isSignedIn) {
+  let authBtn = document.getElementById('sidebar-auth-action-btn');
+  const drawerContainer = document.querySelector('.drawer') || document.querySelector('.drawer-content');
+
+  if (!authBtn && drawerContainer) {
+    authBtn = document.createElement('button');
+    authBtn.id = 'sidebar-auth-action-btn';
+    authBtn.style.cssText = 'margin-top: 15px; width: 100%; padding: 10px; background: transparent; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer; color: inherit; font-size: 0.9rem;';
+    drawerContainer.appendChild(authBtn);
+  }
+
+  if (!authBtn) return;
+
+  if (isSignedIn) {
+    authBtn.textContent = '🚪 Sign Out';
+    authBtn.onclick = handleSignOut;
+  } else {
+    authBtn.textContent = '🔑 Already Subscribed? Log In';
+    authBtn.onclick = promptSubscriberSignIn;
+  }
+}
+
+// 1. SIGN OUT
+async function handleSignOut() {
+  if (confirm("Are you sure you want to sign out?")) {
+    await supabaseClient.auth.signOut();
+    localStorage.clear();
+    alert("Signed out successfully.");
+    window.location.reload();
+  }
+}
+
+// 2. SIGN IN FOR RETURNING SUBSCRIBERS
+async function promptSubscriberSignIn() {
+  const email = prompt("Enter your subscribed email address:");
+  if (!email || !email.trim()) return;
+  
+  await sendMagicLink(email.trim().toLowerCase());
 }
 
 // Run on page load to restore subscriber UI if returning user
