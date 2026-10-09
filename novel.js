@@ -405,21 +405,21 @@ function payWithPaystack(userEmail) {
 }
 
 async function grantUserAccess(userEmail) {
-  try {
-    // 1. Send OTP / Magic Link to log user in or create account
-    const { data, error } = await supabaseClient.auth.signInWithOtp({
-      email: userEmail,
-      options: { shouldCreateUser: true }
-    });
+    try {
+        // 1. Send OTP / Magic Link to log user in or create account
+        const { data, error } = await supabaseClient.auth.signInWithOtp({
+            email: userEmail,
+            options: { shouldCreateUser: true }
+        });
 
-    if (error) throw error;
+        if (error) throw error;
 
-    alert(`Payment received! We sent a 1-click unlock link to ${userEmail}. Open the email link to unlock your book!`);
+        alert(`Payment received! We sent a 1-click unlock link to ${userEmail}. Open the email link to unlock your book!`);
 
-  } catch (err) {
-    console.error("Grant access error:", err);
-    alert("Payment successful, but creating account session failed. Please contact support.");
-  }
+    } catch (err) {
+        console.error("Grant access error:", err);
+        alert("Payment successful, but creating account session failed. Please contact support.");
+    }
 }
 
 // Unified Subscription Function (Handles Supabase User or Guest Prompt)
@@ -610,41 +610,42 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function sendMagicLink(userEmail) {
-  const { data, error } = await supabaseClient.auth.signInWithOtp({
-    email: userEmail,
-    options: {
-      // Redirects user back to the exact page they were reading
-      emailRedirectTo: window.location.href, 
-    },
-  });
+    const { data, error } = await supabaseClient.auth.signInWithOtp({
+        email: userEmail,
+        options: {
+            // Redirects user back to the exact page they were reading
+            emailRedirectTo: 'https://agbemileke18-rgb.github.io/GleanWord/',
+            shouldCreateUser: true
+        },
+    });
 
-  if (error) {
-    alert('Error sending magic link: ' + error.message);
-    return false;
-  }
+    if (error) {
+        alert('Error sending magic link: ' + error.message);
+        return false;
+    }
 
-  alert(`A magic login link has been sent to ${userEmail}. Check your inbox!`);
-  return true;
+    alert(`A magic login link has been sent to ${userEmail}. Check your inbox!`);
+    return true;
 }
 
 // Listen for login events (e.g., when returning from Magic Link)
 supabaseClient.auth.onAuthStateChange((event, session) => {
-  if (event === 'SIGNED_IN' && session) {
-    console.log('User signed in successfully:', session.user.email);
-    
-    // Automatically re-render current chapter to reveal content
-    if (typeof renderCurrentChapter === 'function') {
-      renderCurrentChapter();
+    if (event === 'SIGNED_IN' && session) {
+        console.log('User signed in successfully:', session.user.email);
+
+        // Automatically re-render current chapter to reveal content
+        if (typeof renderCurrentChapter === 'function') {
+            renderCurrentChapter();
+        }
     }
-  }
 });
 
 async function handleSubscriptionFlow(userEmail) {
-  // 1. Send magic link to sign them in securely
-  const linkSent = await sendMagicLink(userEmail);
-  
-  if (linkSent) {
-    // 2. Trigger Paystack payment or prompt them to check email
-    payWithPaystack(userEmail);
-  }
+    // 1. Send magic link to sign them in securely
+    const linkSent = await sendMagicLink(userEmail);
+
+    if (linkSent) {
+        // 2. Trigger Paystack payment or prompt them to check email
+        payWithPaystack(userEmail);
+    }
 }
