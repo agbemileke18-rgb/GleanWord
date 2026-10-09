@@ -405,28 +405,31 @@ function payWithPaystack(userEmail) {
 }
 
 async function grantUserAccess(email) {
-    // 1. Get the active user session from Supabase
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    try {
+        // 1. Send an OTP / Magic Link or Auto Sign-In for the email
+        const { data: authData, error: authError } = await supabaseClient.auth.signInWithOtp({
+            email: email,
+            options: {
+                shouldCreateUser: true // Automatically creates account if it doesn't exist
+            }
+        });
 
-    if (authError || !user) {
-        alert("Please log in to activate your subscription.");
-        return;
-    }
+        if (authError) {
+            console.error("Auth error:", authError);
+        }
 
-    // 2. Update the user's subscription status in Supabase
-    const { data, error } = await supabase
-        .from('profiles') // Replace 'profiles' with your actual user table name if different
-        .update({ is_subscribed: true })
-        .eq('id', user.id);
-
-    if (!error) {
-        // localStorage.setItem('isSubscribed', 'true');
+        // 2. Save email locally so RPC or frontend knows who paid
         localStorage.setItem('userEmail', email);
-        alert("Subscription successful! You now have access to read unfinished works.");
-        window.location.reload(); // Refresh to update unlocked state
-    } else {
-        console.error("Error updating subscription:", error);
-        alert("Payment was received, but updating your account failed. Please contact support.");
+
+        // 3. Prompt user or auto-refresh
+        alert(`Payment successful! A confirmation / login link has been sent to ${email}. If using OTP/Magic Link, verify to complete session setup.`);
+
+        // 4. Reload page to fetch unlocked view
+        window.location.reload();
+
+    } catch (err) {
+        console.error("Error granting access:", err);
+        alert("Payment received, but updating account failed. Please contact support.");
     }
 }
 
