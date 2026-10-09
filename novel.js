@@ -404,33 +404,22 @@ function payWithPaystack(userEmail) {
     handler.openIframe();
 }
 
-async function grantUserAccess(email) {
-    try {
-        // 1. Send an OTP / Magic Link or Auto Sign-In for the email
-        const { data: authData, error: authError } = await supabaseClient.auth.signInWithOtp({
-            email: email,
-            options: {
-                shouldCreateUser: true // Automatically creates account if it doesn't exist
-            }
-        });
+async function grantUserAccess(userEmail) {
+  try {
+    // 1. Send OTP / Magic Link to log user in or create account
+    const { data, error } = await supabaseClient.auth.signInWithOtp({
+      email: userEmail,
+      options: { shouldCreateUser: true }
+    });
 
-        if (authError) {
-            console.error("Auth error:", authError);
-        }
+    if (error) throw error;
 
-        // 2. Save email locally so RPC or frontend knows who paid
-        localStorage.setItem('userEmail', email);
+    alert(`Payment received! We sent a 1-click unlock link to ${userEmail}. Open the email link to unlock your book!`);
 
-        // 3. Prompt user or auto-refresh
-        alert(`Payment successful! A confirmation / login link has been sent to ${email}. If using OTP/Magic Link, verify to complete session setup.`);
-
-        // 4. Reload page to fetch unlocked view
-        window.location.reload();
-
-    } catch (err) {
-        console.error("Error granting access:", err);
-        alert("Payment received, but updating account failed. Please contact support.");
-    }
+  } catch (err) {
+    console.error("Grant access error:", err);
+    alert("Payment successful, but creating account session failed. Please contact support.");
+  }
 }
 
 // Unified Subscription Function (Handles Supabase User or Guest Prompt)
