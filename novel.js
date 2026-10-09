@@ -50,7 +50,7 @@ function renderBooksGrid(works) {
         card.className = 'book-card';
         card.onclick = () => openReaderForWork(work);
 
-        const placeholderImg = '/path/to/your/default-placeholder.png'; 
+        const placeholderImg = '/path/to/your/default-placeholder.png';
 
         const imageSource = work.cover_url || placeholderImg;
 
@@ -80,7 +80,7 @@ async function openReaderForWork(work) {
     if (paywallBanner) paywallBanner.classList.add('hidden');
 
     const { data: chapters, error } = await supabaseClient
-        .from('chapters')
+        .from('chapters_view')
         .select('*')
         .eq('work_id', work.id)
         .order('chapter_number', { ascending: true });
@@ -104,7 +104,7 @@ function renderCurrentChapter() {
     readerBody.style.scrollBehavior = 'auto';
     const paywallBanner = document.getElementById('paywallBanner');
 
-    const isSubscribed = (typeof currentUserProfile !== 'undefined' && currentUserProfile?.is_subscribed) || localStorage.getItem('isSubscribed') === 'true';
+    // const isSubscribed = (typeof currentUserProfile !== 'undefined' && currentUserProfile?.is_subscribed) || localStorage.getItem('isSubscribed') === 'true';
 
     if (chapter && chapter.work_id) {
         localStorage.setItem('lastReadWork', chapter.work_id);
@@ -126,9 +126,9 @@ function renderCurrentChapter() {
         }
     }
 
-    // Access check: Free chapter, sample chapter, or subscribed user
-    if (chapter.chapter_number <= 3 || chapter.is_free || isSubscribed) {
-        const rawContent = chapter.content || '<p>No text found in database for this chapter.</p>';
+    // Access check: Rely directly on Supabase RLS
+    if (chapter && chapter.content) {
+        const rawContent = chapter.content;
 
         let contentHTML = `
       <div class="chapter-marker chapter-start">Chapter Begins</div>
@@ -420,7 +420,7 @@ async function grantUserAccess(email) {
         .eq('id', user.id);
 
     if (!error) {
-        localStorage.setItem('isSubscribed', 'true');
+        // localStorage.setItem('isSubscribed', 'true');
         localStorage.setItem('userEmail', email);
         alert("Subscription successful! You now have access to read unfinished works.");
         window.location.reload(); // Refresh to update unlocked state
