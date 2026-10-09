@@ -619,3 +619,43 @@ document.addEventListener('DOMContentLoaded', () => {
         updateDrawerSubscriptionState();
     }
 });
+
+async function sendMagicLink(userEmail) {
+  const { data, error } = await supabaseClient.auth.signInWithOtp({
+    email: userEmail,
+    options: {
+      // Redirects user back to the exact page they were reading
+      emailRedirectTo: window.location.href, 
+    },
+  });
+
+  if (error) {
+    alert('Error sending magic link: ' + error.message);
+    return false;
+  }
+
+  alert(`A magic login link has been sent to ${userEmail}. Check your inbox!`);
+  return true;
+}
+
+// Listen for login events (e.g., when returning from Magic Link)
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_IN' && session) {
+    console.log('User signed in successfully:', session.user.email);
+    
+    // Automatically re-render current chapter to reveal content
+    if (typeof renderCurrentChapter === 'function') {
+      renderCurrentChapter();
+    }
+  }
+});
+
+async function handleSubscriptionFlow(userEmail) {
+  // 1. Send magic link to sign them in securely
+  const linkSent = await sendMagicLink(userEmail);
+  
+  if (linkSent) {
+    // 2. Trigger Paystack payment or prompt them to check email
+    payWithPaystack(userEmail);
+  }
+}
