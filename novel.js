@@ -386,77 +386,81 @@ function handleSwipeGesture() {
 }
 
 function payWithPaystack(userEmail) {
-  console.log("Starting Paystack initialization for:", userEmail);
+    console.log("Starting Paystack initialization for:", userEmail);
 
-  if (typeof PaystackPop === 'undefined') {
-    alert("Paystack SDK failed to load. Please check your internet connection.");
-    return;
-  }
+    if (typeof PaystackPop === 'undefined') {
+        alert("Paystack SDK failed to load. Please check your internet connection.");
+        return;
+    }
 
-  try {
-    const handler = PaystackPop.setup({
-      key: 'pk_live_d7daec8fa68494d3a0f624f8a1d61f9b3695b76b',
-      email: userEmail,
-      amount: 1000 * 100, // ₦1,000 in kobo
-      currency: 'NGN',
-      ref: 'sub_' + Math.floor((Math.random() * 1000000000) + 1),
-      callback: function(response) {
-        console.log('Payment complete! Reference:', response.reference);
-        // Call grantUserAccess inside a non-async wrapper
-        grantUserAccess(userEmail).catch(err => console.error("Access error:", err));
-      },
-      onClose: function() {
-        console.log('Transaction window closed.');
-      }
-    });
+    try {
+        const handler = PaystackPop.setup({
+            key: 'pk_live_d7daec8fa68494d3a0f624f8a1d61f9b3695b76b',
+            email: userEmail,
+            amount: 1000 * 100, // ₦1,000 in kobo
+            currency: 'NGN',
+            ref: 'sub_' + Math.floor((Math.random() * 1000000000) + 1),
+            callback: function (response) {
+                console.log('Payment complete! Reference:', response.reference);
+                // Call grantUserAccess inside a non-async wrapper
+                grantUserAccess(userEmail).catch(err => console.error("Access error:", err));
+            },
+            onClose: function () {
+                console.log('Transaction window closed.');
+            }
+        });
 
-    console.log("Opening Paystack iframe...");
-    handler.openIframe();
-  } catch (err) {
-    console.error("PaystackPop setup error:", err);
-    alert("Could not open payment window: " + err.message);
-  }
+        console.log("Opening Paystack iframe...");
+        handler.openIframe();
+    } catch (err) {
+        console.error("PaystackPop setup error:", err);
+        alert("Could not open payment window: " + err.message);
+    }
 }
 
 async function grantUserAccess(userEmail) {
-  try {
-    // 1. Check if user is currently logged into the app
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    try {
+        // 1. Check if user is currently logged into the app
+        const { data: { session } } = await supabaseClient.auth.getSession();
 
-    if (session?.user) {
-      // 2A. USER IS LOGGED IN: Instantly set is_subscribed = true in Supabase
-      const { error } = await supabaseClient
-        .from('profiles')
-        .update({ is_subscribed: true })
-        .eq('id', session.user.id);
+        if (session?.user) {
+            // 2A. USER IS LOGGED IN: Instantly set is_subscribed = true in Supabase
+            const { error } = await supabaseClient
+                .from('profiles')
+                .update({ is_subscribed: true })
+                .eq('id', session.user.id);
 
-      if (error) throw error;
+            if (error) throw error;
 
-      alert("🎉 Payment successful! Premium subscription activated.");
-      
-      // Sync local storage and refresh drawer UI
-      localStorage.setItem('isSubscribed', 'true');
-      if (typeof updateDrawerSubscriptionState === 'function') {
-        await updateDrawerSubscriptionState();
-      }
-      window.location.reload();
+            alert("🎉 Payment successful! Premium subscription activated.");
 
-    } else {
-      // 2B. USER IS NOT LOGGED IN: Send Magic Link so they can access their account
-      const { data, error } = await supabaseClient.auth.signInWithOtp({
-        email: userEmail,
-        options: { shouldCreateUser: true }
-      });
+            // Sync local storage and refresh drawer UI
+            localStorage.setItem('isSubscribed', 'true');
+            if (typeof updateDrawerSubscriptionState === 'function') {
+                await updateDrawerSubscriptionState();
+            }
+            window.location.reload();
 
-      if (error) throw error;
+        } else {
+            // 2B. USER IS NOT LOGGED IN: Send Magic Link so they can access their subscription
+            const { data, error } = await supabaseClient.auth.signInWithOtp({
+                email: userEmail,
+                options: {
+                    shouldCreateUser: true,
+                    // Add this line right here to fix the 404 redirection issue:
+                    emailRedirectTo: window.location.href.split('?')[0]
+                }
+            });
 
-      alert(`Payment received! We sent a 1-click magic access link to ${userEmail}. Check your inbox to complete sign-in.`);
+            if (error) throw error;
+
+            alert(`Payment received! We sent a 1-click magic access link to ${userEmail}. Check your inbox to complete sign-in.`);
+        }
+
+    } catch (err) {
+        console.error("Grant access error:", err);
+        alert("Payment was successful, but updating subscription failed. Please contact support.");
     }
-
-  } catch (err) {
-    console.error("Grant access error:", err);
-    alert("Payment was successful, but updating subscription failed. Please contact support.");
-  }
 }
 
 // Global guard flag to prevent multiple triggers / triple prompts
@@ -464,49 +468,49 @@ let isProcessingPayment = false;
 
 // Unified Subscription Function
 async function initiateSubscription() {
-  if (isProcessingPayment) return;
-  isProcessingPayment = true;
+    if (isProcessingPayment) return;
+    isProcessingPayment = true;
 
-  try {
-    let userEmail = null;
+    try {
+        let userEmail = null;
 
-    // 1. Correct client reference: check supabaseClient for logged-in user
-    if (typeof supabaseClient !== 'undefined' && supabaseClient?.auth) {
-      const { data } = await supabaseClient.auth.getUser();
-      userEmail = data?.user?.email;
+        // 1. Correct client reference: check supabaseClient for logged-in user
+        if (typeof supabaseClient !== 'undefined' && supabaseClient?.auth) {
+            const { data } = await supabaseClient.auth.getUser();
+            userEmail = data?.user?.email;
+        }
+
+        // 2. Fallback prompt ONLY IF user is not logged in
+        if (!userEmail) {
+            userEmail = prompt("Enter your email address to subscribe:");
+        }
+
+        // 3. Launch Paystack if valid email present
+        if (userEmail && userEmail.includes('@')) {
+            payWithPaystack(userEmail);
+        } else if (userEmail !== null) {
+            alert("Please enter a valid email address.");
+        }
+    } catch (err) {
+        console.error("Subscription error:", err);
+    } finally {
+        // Reset flag after 1 second
+        setTimeout(() => {
+            isProcessingPayment = false;
+        }, 1000);
     }
-
-    // 2. Fallback prompt ONLY IF user is not logged in
-    if (!userEmail) {
-      userEmail = prompt("Enter your email address to subscribe:");
-    }
-
-    // 3. Launch Paystack if valid email present
-    if (userEmail && userEmail.includes('@')) {
-      payWithPaystack(userEmail);
-    } else if (userEmail !== null) {
-      alert("Please enter a valid email address.");
-    }
-  } catch (err) {
-    console.error("Subscription error:", err);
-  } finally {
-    // Reset flag after 1 second
-    setTimeout(() => {
-      isProcessingPayment = false;
-    }, 1000);
-  }
 }
 
 // Single Event Listener for ALL Subscribe Buttons
 document.addEventListener('click', (e) => {
-  const target = e.target;
-  // Match closest button or element with ID or Class
-  const subBtn = target.closest('.subscribe-btn, #subscribe-btn, #sidebar-subscribe-btn, #reader-subscribe-btn, #modal-pay-btn');
-  
-  if (subBtn) {
-    e.preventDefault();
-    initiateSubscription();
-  }
+    const target = e.target;
+    // Match closest button or element with ID or Class
+    const subBtn = target.closest('.subscribe-btn, #subscribe-btn, #sidebar-subscribe-btn, #reader-subscribe-btn, #modal-pay-btn');
+
+    if (subBtn) {
+        e.preventDefault();
+        initiateSubscription();
+    }
 });
 
 async function openWorkOrChapter(work) {
@@ -622,117 +626,140 @@ document.addEventListener('touchend', (e) => {
 
 // Dynamic Subscription & User Email UI Updates
 async function updateDrawerSubscriptionState() {
-  const subBtn = document.getElementById('sidebar-subscribe-btn');
-  const emailDisplay = document.getElementById('user-email-display');
+    const subBtn = document.getElementById('sidebar-subscribe-btn');
+    const emailDisplay = document.getElementById('user-email-display');
 
-  // 1. Fetch current active session directly from Supabase
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  
-  let isSubscribed = false;
-  let userEmail = '';
+    // 1. Fetch current active session directly from Supabase
+    const { data: { session } } = await supabaseClient.auth.getSession();
 
-  if (session?.user) {
-    userEmail = session.user.email;
-    
-    // 2. Query database profile for subscription flag
-    const { data: profile } = await supabaseClient
-      .from('profiles')
-      .select('is_subscribed')
-      .eq('id', session.user.id)
-      .single();
+    let isSubscribed = false;
+    let userEmail = '';
 
-    isSubscribed = profile?.is_subscribed || false;
+    if (session?.user) {
+        userEmail = session.user.email;
 
-    // Optional: Sync localStorage for offline access
-    localStorage.setItem('userEmail', userEmail);
-    localStorage.setItem('isSubscribed', isSubscribed ? 'true' : 'false');
-  }
+        // 2. Query database profile for subscription flag
+        const { data: profile } = await supabaseClient
+            .from('profiles')
+            .select('is_subscribed')
+            .eq('id', session.user.id)
+            .single();
 
-  // 3. Update Drawer UI based on verified status
-  if (isSubscribed) {
-    if (emailDisplay) {
-      emailDisplay.textContent = userEmail;
+        isSubscribed = profile?.is_subscribed || false;
+
+        // Optional: Sync localStorage for offline access
+        localStorage.setItem('userEmail', userEmail);
+        localStorage.setItem('isSubscribed', isSubscribed ? 'true' : 'false');
     }
-    if (subBtn) {
-      subBtn.textContent = '👑 Premium User';
-      subBtn.classList.add('premium-user');
-      subBtn.onclick = null; // Disable trigger for active subscribers
-    }
-  } else {
-    if (emailDisplay) {
-      emailDisplay.textContent = session?.user ? userEmail : 'Welcome, Reader!';
-    }
-    if (subBtn) {
-      subBtn.textContent = 'Subscribe for ₦1,000';
-      subBtn.classList.remove('premium-user');
-      subBtn.onclick = () => {
-        closeDrawer();
-        if (typeof initiateSubscription === 'function') {
-          initiateSubscription();
+
+    // 3. Update Drawer UI based on verified status
+    if (isSubscribed) {
+        if (emailDisplay) {
+            emailDisplay.textContent = userEmail;
         }
-      };
+        if (subBtn) {
+            subBtn.textContent = '👑 Premium User';
+            subBtn.classList.add('premium-user');
+            subBtn.onclick = null; // Disable trigger for active subscribers
+        }
+    } else {
+        if (emailDisplay) {
+            emailDisplay.textContent = session?.user ? userEmail : 'Welcome, Reader!';
+        }
+        if (subBtn) {
+            subBtn.textContent = 'Subscribe for ₦1,000';
+            subBtn.classList.remove('premium-user');
+            subBtn.onclick = () => {
+                closeDrawer();
+                if (typeof initiateSubscription === 'function') {
+                    initiateSubscription();
+                }
+            };
+        }
     }
-  }
-  renderSignOutButton(Boolean(session?.user));
+    renderSignOutButton(Boolean(session?.user));
 }
 
 // Dynamic Sign Out / Log In Button Handler
 function renderSignOutButton(isSignedIn) {
-  let authBtn = document.getElementById('sidebar-auth-action-btn');
-  const drawerContainer = document.querySelector('.drawer') || document.querySelector('.drawer-content');
+    let authBtn = document.getElementById('sidebar-auth-action-btn');
+    const drawerContainer = document.querySelector('.drawer') || document.querySelector('.drawer-content');
 
-  if (!authBtn && drawerContainer) {
-    authBtn = document.createElement('button');
-    authBtn.id = 'sidebar-auth-action-btn';
-    authBtn.style.cssText = 'margin-top: 15px; width: 100%; padding: 10px; background: transparent; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer; color: inherit; font-size: 0.9rem;';
-    drawerContainer.appendChild(authBtn);
-  }
+    if (!authBtn && drawerContainer) {
+        authBtn = document.createElement('button');
+        authBtn.id = 'sidebar-auth-action-btn';
+        authBtn.style.cssText = 'margin-top: 15px; width: 100%; padding: 10px; background: transparent; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer; color: inherit; font-size: 0.9rem;';
+        drawerContainer.appendChild(authBtn);
+    }
 
-  if (!authBtn) return;
+    if (!authBtn) return;
 
-  if (isSignedIn) {
-    authBtn.textContent = '🚪 Sign Out';
-    authBtn.onclick = handleSignOut;
-  } else {
-    authBtn.textContent = '🔑 Already Subscribed? Log In';
-    authBtn.onclick = promptSubscriberSignIn;
-  }
+    if (isSignedIn) {
+        authBtn.textContent = '🚪 Sign Out';
+        authBtn.onclick = handleSignOut;
+    } else {
+        authBtn.textContent = '🔑 Already Subscribed? Log In';
+        authBtn.onclick = promptSubscriberSignIn;
+    }
 }
 
 // 1. SIGN OUT
 async function handleSignOut() {
-  if (confirm("Are you sure you want to sign out?")) {
-    await supabaseClient.auth.signOut();
-    localStorage.clear();
-    alert("Signed out successfully.");
-    window.location.reload();
-  }
+    if (confirm("Are you sure you want to sign out?")) {
+        await supabaseClient.auth.signOut();
+        localStorage.clear();
+        alert("Signed out successfully.");
+        window.location.reload();
+    }
 }
 
 // 2. SIGN IN FOR RETURNING SUBSCRIBERS
 async function promptSubscriberSignIn() {
-  const email = prompt("Enter your subscribed email address:");
-  if (!email || !email.trim()) return;
-  
-  await sendMagicLink(email.trim().toLowerCase());
+    const email = prompt("Enter your subscribed email address:");
+    if (!email || !email.trim()) return;
+
+    await sendMagicLink(email.trim().toLowerCase());
 }
 
-// Run on page load to restore subscriber UI if returning user
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    // 1. Check if returning from Paystack payment
+    const urlParams = new URLSearchParams(window.location.search);
+    const paystackReference = urlParams.get('reference');
+
+    if (paystackReference) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session && session.user) {
+            const { error } = await supabaseClient
+                .from('profiles')
+                .update({ is_premium: true })
+                .eq('id', session.user.id);
+
+            if (!error) {
+                alert("Payment verified successfully! Welcome to your premium subscription 🎉");
+                window.history.replaceState({}, document.title, window.location.pathname);
+                if (typeof updateDrawerSubscriptionState === 'function') {
+                    await updateDrawerSubscriptionState();
+                }
+                if (typeof renderCurrentChapter === 'function') {
+                    renderCurrentChapter();
+                }
+            }
+        }
+    }
+
+    // 2. Your existing drawer/UI initializers...
     if (typeof updateDrawerSubscriptionState === 'function') {
         updateDrawerSubscriptionState();
     }
 });
+
 async function sendMagicLink(userEmail) {
     try {
-        // 1. Clear any existing active session from localStorage
-        await supabaseClient.auth.signOut();
 
-        // 2. Send the fresh OTP/Magic Link
         const { data, error } = await supabaseClient.auth.signInWithOtp({
             email: userEmail,
             options: {
-                emailRedirectTo: 'https://agbemileke18-rgb.github.io/GleanWord/',
+                emailRedirectTo: 'https://gleanword.com/',
                 shouldCreateUser: true
             }
         });
@@ -749,19 +776,19 @@ async function sendMagicLink(userEmail) {
 
 // Listen for login events (e.g., returning from Magic Link redirect)
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
-  if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
-    console.log('User signed in successfully:', session.user.email);
-    
-    // 1. Refresh drawer header and button state
-    if (typeof updateDrawerSubscriptionState === 'function') {
-      await updateDrawerSubscriptionState();
-    }
+    if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+        console.log('User signed in successfully:', session.user.email);
 
-    // 2. Re-render current chapter to reveal subscriber content
-    if (typeof renderCurrentChapter === 'function') {
-      renderCurrentChapter();
+        // 1. Refresh drawer header and button state
+        if (typeof updateDrawerSubscriptionState === 'function') {
+            await updateDrawerSubscriptionState();
+        }
+
+        // 2. Re-render current chapter to reveal subscriber content
+        if (typeof renderCurrentChapter === 'function') {
+            renderCurrentChapter();
+        }
     }
-  }
 });
 
 async function handleSubscriptionFlow(userEmail) {
