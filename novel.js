@@ -386,26 +386,36 @@ function handleSwipeGesture() {
 }
 
 function payWithPaystack(userEmail) {
-  // Store email locally in case of redirect or page refresh
-  localStorage.setItem('pending_sub_email', userEmail);
+  console.log("Starting Paystack initialization for:", userEmail);
 
-  let handler = PaystackPop.setup({
-    key: 'pk_live_d7daec8fa68494d3a0f624f8a1d61f9b3695b76b',
-    email: userEmail,
-    amount: 1000 * 100, // ₦1,000 in kobo
-    currency: 'NGN',
-    ref: 'sub_' + Math.floor((Math.random() * 1000000000) + 1),
-    callback: async function(response) {
-      console.log('Payment complete! Reference: ' + response.reference);
-      // Automatically update database and grant access
-      await grantUserAccess(userEmail);
-    },
-    onClose: function() {
-      console.log('Transaction window closed.');
-    }
-  });
+  if (typeof PaystackPop === 'undefined') {
+    alert("Paystack SDK failed to load. Please check your internet connection.");
+    return;
+  }
 
-  handler.openIframe();
+  try {
+    const handler = PaystackPop.setup({
+      key: 'pk_live_d7daec8fa68494d3a0f624f8a1d61f9b3695b76b',
+      email: userEmail,
+      amount: 1000 * 100, // ₦1,000 in kobo
+      currency: 'NGN',
+      ref: 'sub_' + Math.floor((Math.random() * 1000000000) + 1),
+      callback: function(response) {
+        console.log('Payment complete! Reference:', response.reference);
+        // Call grantUserAccess inside a non-async wrapper
+        grantUserAccess(userEmail).catch(err => console.error("Access error:", err));
+      },
+      onClose: function() {
+        console.log('Transaction window closed.');
+      }
+    });
+
+    console.log("Opening Paystack iframe...");
+    handler.openIframe();
+  } catch (err) {
+    console.error("PaystackPop setup error:", err);
+    alert("Could not open payment window: " + err.message);
+  }
 }
 
 async function grantUserAccess(userEmail) {
@@ -449,40 +459,54 @@ async function grantUserAccess(userEmail) {
   }
 }
 
-// Unified Subscription Function (Handles Supabase User or Guest Prompt)
+// Global guard flag to prevent multiple triggers / triple prompts
+let isProcessingPayment = false;
+
+// Unified Subscription Function
 async function initiateSubscription() {
+  if (isProcessingPayment) return;
+  isProcessingPayment = true;
+
+  try {
     let userEmail = null;
 
-    // 1. Try to get logged-in user email from Supabase
-    if (typeof supabase !== 'undefined' && supabase.auth) {
-        const { data } = await supabase.auth.getUser();
-        userEmail = data?.user?.email;
+    // 1. Correct client reference: check supabaseClient for logged-in user
+    if (typeof supabaseClient !== 'undefined' && supabaseClient?.auth) {
+      const { data } = await supabaseClient.auth.getUser();
+      userEmail = data?.user?.email;
     }
 
-    // 2. Fallback prompt if user is not logged in
+    // 2. Fallback prompt ONLY IF user is not logged in
     if (!userEmail) {
-        userEmail = prompt("Enter your email address to subscribe:");
+      userEmail = prompt("Enter your email address to subscribe:");
     }
 
     // 3. Launch Paystack if valid email present
     if (userEmail && userEmail.includes('@')) {
-        payWithPaystack(userEmail);
+      payWithPaystack(userEmail);
     } else if (userEmail !== null) {
-        alert("Please enter a valid email address.");
+      alert("Please enter a valid email address.");
     }
+  } catch (err) {
+    console.error("Subscription error:", err);
+  } finally {
+    // Reset flag after 1 second
+    setTimeout(() => {
+      isProcessingPayment = false;
+    }, 1000);
+  }
 }
 
-// Single Event Listener for ALL Subscribe Buttons (Dashboard, Sidebar, Reader)
+// Single Event Listener for ALL Subscribe Buttons
 document.addEventListener('click', (e) => {
-    const target = e.target;
-    if (target && (
-        target.id === 'subscribe-btn' ||
-        target.id === 'sidebar-subscribe-btn' ||
-        target.id === 'reader-subscribe-btn'
-    )) {
-        e.preventDefault();
-        initiateSubscription();
-    }
+  const target = e.target;
+  // Match closest button or element with ID or Class
+  const subBtn = target.closest('.subscribe-btn, #subscribe-btn, #sidebar-subscribe-btn, #reader-subscribe-btn, #modal-pay-btn');
+  
+  if (subBtn) {
+    e.preventDefault();
+    initiateSubscription();
+  }
 });
 
 async function openWorkOrChapter(work) {
