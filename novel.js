@@ -800,3 +800,30 @@ async function handleSubscriptionFlow(userEmail) {
         payWithPaystack(userEmail);
     }
 }
+
+let deferredPrompt;
+const installBtn = document.getElementById('pwa-install-btn');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent default mini-infobar from showing
+    e.preventDefault();
+    // Save event so it can be triggered later
+    deferredPrompt = e;
+    // Show the "Install App" button in the menu
+    if (installBtn) installBtn.style.display = 'block';
+});
+
+installBtn?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (!deferredPrompt) return;
+    
+    // Trigger the native install prompt
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    
+    if (outcome === 'accepted') {
+        console.log('User installed the PWA');
+    }
+    deferredPrompt = null;
+    installBtn.style.display = 'none';
+});
