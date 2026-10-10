@@ -386,40 +386,67 @@ function handleSwipeGesture() {
 }
 
 function payWithPaystack(userEmail) {
-    let handler = PaystackPop.setup({
-        key: 'pk_live_d7daec8fa68494d3a0f624f8a1d61f9b3695b76b',
-        email: userEmail,
-        amount: 1000 * 100,
-        currency: 'NGN',
-        ref: 'sub_' + Math.floor((Math.random() * 1000000000) + 1), // Generates a unique reference
-        callback: function (response) {
-            // This triggers when payment is successful
-            console.log('Payment complete! Reference: ' + response.reference);
-            grantUserAccess(userEmail);
-        },
-        onClose: function () {
-            console.log('Transaction window closed.');
-        },
-    });
-    handler.openIframe();
+  // Store email locally in case of redirect or page refresh
+  localStorage.setItem('pending_sub_email', userEmail);
+
+  let handler = PaystackPop.setup({
+    key: 'pk_live_d7daec8fa68494d3a0f624f8a1d61f9b3695b76b',
+    email: userEmail,
+    amount: 1000 * 100, // ₦1,000 in kobo
+    currency: 'NGN',
+    ref: 'sub_' + Math.floor((Math.random() * 1000000000) + 1),
+    callback: async function(response) {
+      console.log('Payment complete! Reference: ' + response.reference);
+      // Automatically update database and grant access
+      await grantUserAccess(userEmail);
+    },
+    onClose: function() {
+      console.log('Transaction window closed.');
+    }
+  });
+
+  handler.openIframe();
 }
 
 async function grantUserAccess(userEmail) {
-    try {
-        // 1. Send OTP / Magic Link to log user in or create account
-        const { data, error } = await supabaseClient.auth.signInWithOtp({
-            email: userEmail,
-            options: { shouldCreateUser: true }
-        });
+  try {
+    // 1. Check if user is currently logged into the app
+    const { data: { session } } = await supabaseClient.auth.getSession();
 
-        if (error) throw error;
+    if (session?.user) {
+      // 2A. USER IS LOGGED IN: Instantly set is_subscribed = true in Supabase
+      const { error } = await supabaseClient
+        .from('profiles')
+        .update({ is_subscribed: true })
+        .eq('id', session.user.id);
 
-        alert(`Payment received! We sent a 1-click unlock link to ${userEmail}. Open the email link to unlock your book!`);
+      if (error) throw error;
 
-    } catch (err) {
-        console.error("Grant access error:", err);
-        alert("Payment successful, but creating account session failed. Please contact support.");
+      alert("🎉 Payment successful! Premium subscription activated.");
+      
+      // Sync local storage and refresh drawer UI
+      localStorage.setItem('isSubscribed', 'true');
+      if (typeof updateDrawerSubscriptionState === 'function') {
+        await updateDrawerSubscriptionState();
+      }
+      window.location.reload();
+
+    } else {
+      // 2B. USER IS NOT LOGGED IN: Send Magic Link so they can access their account
+      const { data, error } = await supabaseClient.auth.signInWithOtp({
+        email: userEmail,
+        options: { shouldCreateUser: true }
+      });
+
+      if (error) throw error;
+
+      alert(`Payment received! We sent a 1-click magic access link to ${userEmail}. Check your inbox to complete sign-in.`);
     }
+
+  } catch (err) {
+    console.error("Grant access error:", err);
+    alert("Payment was successful, but updating subscription failed. Please contact support.");
+  }
 }
 
 // Unified Subscription Function (Handles Supabase User or Guest Prompt)
