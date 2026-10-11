@@ -745,7 +745,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const { error } = await supabaseClient
                 .from('profiles')
                 .update({ is_subscribed: true })  // <--- Changed from is_premium to is_subscribed                .eq('id', session.user.id);
-
+                .eq('id', session.user.id); // <--- THIS LINE WAS MISSING!
             if (!error) {
                 alert("Payment verified successfully! Welcome to your GleanWord premium subscription 🎉");
 
