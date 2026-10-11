@@ -1,8 +1,13 @@
 const SUPABASE_URL = 'https://bvdcddrjhxoqaslivqiu.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_ipYUkqRL10LZr_99aq4hGw_LRas0xUY';
 
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+    }
+});
 let currentFontSize = 18;
 let activeCategory = 'all';
 
@@ -722,12 +727,20 @@ async function promptSubscriberSignIn() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Check if returning from Paystack payment
+    // 1. Check if returning from Paystack redirect
     const urlParams = new URLSearchParams(window.location.search);
-    const paystackReference = urlParams.get('reference');
+    const paystackReference = urlParams.get('reference') || urlParams.get('trxref');
 
     if (paystackReference) {
-        const { data: { session } } = await supabaseClient.auth.getSession();
+        // Fetch session explicitly
+        let { data: { session } } = await supabaseClient.auth.getSession();
+
+        // Fallback: If session isn't immediately ready, retrieve user directly
+        if (!session) {
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (user) session = { user };
+        }
+
         if (session && session.user) {
             const { error } = await supabaseClient
                 .from('profiles')
@@ -735,19 +748,39 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .eq('id', session.user.id);
 
             if (!error) {
-                alert("Payment verified successfully! Welcome to your premium subscription 🎉");
+                alert("Payment verified successfully! Welcome to your GleanWord premium subscription 🎉");
+                
+                // Clean reference from URL bar
                 window.history.replaceState({}, document.title, window.location.pathname);
+                
                 if (typeof updateDrawerSubscriptionState === 'function') {
                     await updateDrawerSubscriptionState();
                 }
                 if (typeof renderCurrentChapter === 'function') {
                     renderCurrentChapter();
                 }
+            } else {
+                console.error("Supabase update error:", error.message);
+                alert("Payment detected, but could not update profile automatically.");
             }
+        } else {
+            alert("Payment verified! Please sign in to activate your premium features.");
         }
     }
 
-    // 2. Your existing drawer/UI initializers...
+    // 2. Automatically update UI on auth changes (magic links, logins)
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+        if (session) {
+            if (typeof updateDrawerSubscriptionState === 'function') {
+                await updateDrawerSubscriptionState();
+            }
+            if (typeof renderCurrentChapter === 'function') {
+                renderCurrentChapter();
+            }
+        }
+    });
+
+    // 3. Initial UI drawer check
     if (typeof updateDrawerSubscriptionState === 'function') {
         updateDrawerSubscriptionState();
     }
