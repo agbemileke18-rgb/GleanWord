@@ -732,26 +732,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     const paystackReference = urlParams.get('reference') || urlParams.get('trxref');
 
     if (paystackReference) {
-        // Fetch session explicitly
-        let { data: { session } } = await supabaseClient.auth.getSession();
+        // Helper function to run the update logic
+        const processSubscriptionUpdate = async (sessionUser) => {
+            if (!sessionUser) return;
 
-        // Fallback: If session isn't immediately ready, retrieve user directly
-        if (!session) {
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (user) session = { user };
-        }
-
-        if (session && session.user) {
             const { error } = await supabaseClient
                 .from('profiles')
-                .update({ is_subscribed: true })  // <--- Changed from is_premium to is_subscribed                .eq('id', session.user.id);
-                .eq('id', session.user.id); // <--- THIS LINE WAS MISSING!
+                .update({ is_subscribed: true })
+                .eq('id', sessionUser.id);
+
             if (!error) {
                 alert("Payment verified successfully! Welcome to your GleanWord premium subscription 🎉");
-
+                
                 // Clean reference from URL bar
                 window.history.replaceState({}, document.title, window.location.pathname);
-
+                
                 if (typeof updateDrawerSubscriptionState === 'function') {
                     await updateDrawerSubscriptionState();
                 }
@@ -762,11 +757,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.error("Supabase update error:", error.message);
                 alert("Payment detected, but could not update profile automatically.");
             }
+        };
+
+        // Attempt 1: Fetch active session immediately
+        let { data: { session } } = await supabaseClient.auth.getSession();
+
+        if (session && session.user) {
+            await processSubscriptionUpdate(session.user);
         } else {
-            alert("Payment verified! Please sign in to activate your premium features.");
+            // Attempt 2 (Fallback for Mobile/PWA): Wait for Supabase session hydration
+            const { data: authListener } = supabaseClient.auth.onAuthStateChange(async (event, authSession) => {
+                if (authSession && authSession.user) {
+                    await processSubscriptionUpdate(authSession.user);
+                    if (authListener?.subscription) {
+                        authListener.subscription.unsubscribe();
+                    }
+                }
+            });
         }
     }
-
     // 2. Automatically update UI on auth changes (magic links, logins)
     supabaseClient.auth.onAuthStateChange(async (event, session) => {
         if (session) {
