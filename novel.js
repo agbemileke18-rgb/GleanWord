@@ -744,15 +744,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (session && session.user) {
             const { error } = await supabaseClient
                 .from('profiles')
-                .update({ is_premium: true })
-                .eq('id', session.user.id);
+                .update({ is_subscribed: true })  // <--- Changed from is_premium to is_subscribed                .eq('id', session.user.id);
 
             if (!error) {
                 alert("Payment verified successfully! Welcome to your GleanWord premium subscription 🎉");
-                
+
                 // Clean reference from URL bar
                 window.history.replaceState({}, document.title, window.location.pathname);
-                
+
                 if (typeof updateDrawerSubscriptionState === 'function') {
                     await updateDrawerSubscriptionState();
                 }
@@ -849,11 +848,11 @@ window.addEventListener('beforeinstallprompt', (e) => {
 installBtn?.addEventListener('click', async (e) => {
     e.preventDefault();
     if (!deferredPrompt) return;
-    
+
     // Trigger the native install prompt
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    
+
     if (outcome === 'accepted') {
         console.log('User installed the PWA');
     }
