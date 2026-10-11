@@ -755,7 +755,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (typeof updateDrawerSubscriptionState === 'function') {
                     await updateDrawerSubscriptionState();
                 }
-                if (typeof renderCurrentChapter === 'function') {
+                if (typeof renderCurrentChapter === 'function' && window.currentChapter) {
                     renderCurrentChapter();
                 }
             } else {
