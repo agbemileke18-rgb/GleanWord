@@ -468,7 +468,6 @@ async function grantUserAccess(userEmail) {
     }
 }
 
-// Global guard flag to prevent multiple triggers / triple prompts
 let isProcessingPayment = false;
 
 // Unified Subscription Function
@@ -479,29 +478,34 @@ async function initiateSubscription() {
     try {
         let userEmail = null;
 
-        // 1. Correct client reference: check supabaseClient for logged-in user
-        if (typeof supabaseClient !== 'undefined' && supabaseClient?.auth) {
+        // 1. Check if the reader happens to already be signed in
+        if (typeof supabaseClient !== 'undefined' && supabaseClient.auth) {
             const { data } = await supabaseClient.auth.getUser();
             userEmail = data?.user?.email;
         }
 
-        // 2. Fallback prompt ONLY IF user is not logged in
-        if (!userEmail) {
-            userEmail = prompt("Enter your email address to subscribe:");
+        // 2. If logged in, launch Paystack directly with their existing email
+        if (userEmail) {
+            payWithPaystack(userEmail);
+            return;
         }
 
-        // 3. Launch Paystack if valid email present
-        if (userEmail && userEmail.includes('@')) {
-            payWithPaystack(userEmail);
-        } else if (userEmail !== null) {
-            alert("Please enter a valid email address.");
-        }
+        // 3. For guest readers (99% of first-time subscribers):
+        // Show the custom email modal to collect their email before opening Paystack
+        showEmailModal("Subscribe", "Enter your email address to subscribe:", (email) => {
+            isProcessingPayment = false;
+            if (email && email.includes('@')) {
+                payWithPaystack(email.trim().toLowerCase());
+            } else if (email) {
+                alert("Please enter a valid email address.");
+            }
+        });
+
     } catch (err) {
         console.error("Subscription error:", err);
     } finally {
-        // Reset flag after 1 second
-        setTimeout(() => {
-            isProcessingPayment = false;
+        setTimeout(() => { 
+            isProcessingPayment = false; 
         }, 1000);
     }
 }
@@ -674,7 +678,8 @@ async function updateDrawerSubscriptionState() {
         if (subBtn) {
             subBtn.textContent = 'Subscribe for ₦1,000';
             subBtn.classList.remove('premium-user');
-            subBtn.onclick = () => {
+            subBtn.onclick = (e) => {
+                e.stopPropagation();
                 closeDrawer();
                 if (typeof initiateSubscription === 'function') {
                     initiateSubscription();
@@ -682,18 +687,18 @@ async function updateDrawerSubscriptionState() {
             };
         }
     }
+
     renderSignOutButton(Boolean(session?.user));
 }
 
-// Dynamic Sign Out / Log In Button Handler
 function renderSignOutButton(isSignedIn) {
     let authBtn = document.getElementById('sidebar-auth-action-btn');
-    const drawerContainer = document.querySelector('.drawer') || document.querySelector('.drawer-content');
+    const drawerContainer = document.querySelector('.drawer') || document.querySelector('.sidebar-drawer');
 
     if (!authBtn && drawerContainer) {
         authBtn = document.createElement('button');
         authBtn.id = 'sidebar-auth-action-btn';
-        authBtn.style.cssText = 'margin-top: 15px; width: 100%; padding: 10px; background: transparent; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer; color: inherit; font-size: 0.9rem;';
+        authBtn.style.cssText = 'margin-top: 15px; width: 100%; padding: 10px; cursor: pointer;';
         drawerContainer.appendChild(authBtn);
     }
 
@@ -701,10 +706,17 @@ function renderSignOutButton(isSignedIn) {
 
     if (isSignedIn) {
         authBtn.textContent = '🚪 Sign Out';
-        authBtn.onclick = handleSignOut;
+        authBtn.onclick = (e) => {
+            e.stopPropagation();
+            handleSignOut();
+        };
     } else {
         authBtn.textContent = '🔑 Already Subscribed? Log In';
-        authBtn.onclick = promptSubscriberSignIn;
+        authBtn.onclick = (e) => {
+            e.stopPropagation();
+            closeDrawer();
+            promptSubscriberSignIn();
+        };
     }
 }
 
@@ -720,10 +732,12 @@ async function handleSignOut() {
 
 // 2. SIGN IN FOR RETURNING SUBSCRIBERS
 async function promptSubscriberSignIn() {
-    const email = prompt("Enter your subscribed email address:");
-    if (!email || !email.trim()) return;
-
-    await sendMagicLink(email.trim().toLowerCase());
+    // Show a clean email input modal instead of browser prompt()
+    showEmailModal("Sign In", "Enter your email address to receive a 6-digit access code:", async (email) => {
+        if (email) {
+            await sendMagicLink(email.trim().toLowerCase());
+        }
+    });
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -743,10 +757,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (!error) {
                 alert("Payment verified successfully! Welcome to your GleanWord premium subscription 🎉");
-                
+
                 // Clean reference from URL bar
                 window.history.replaceState({}, document.title, window.location.pathname);
-                
+
                 if (typeof updateDrawerSubscriptionState === 'function') {
                     await updateDrawerSubscriptionState();
                 }
@@ -794,23 +808,130 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+let onEmailSubmitCallback = null;
+
+function showEmailModal(title, description, callback) {
+    const modal = document.getElementById('emailModal');
+    const titleEl = document.getElementById('emailModalTitle');
+    const descEl = document.getElementById('emailModalDesc');
+    const input = document.getElementById('emailModalInput');
+
+    if (titleEl) titleEl.textContent = title;
+    if (descEl) descEl.textContent = description;
+    if (input) {
+        input.value = '';
+        setTimeout(() => input.focus(), 100);
+    }
+
+    onEmailSubmitCallback = callback;
+    if (modal) modal.style.display = 'flex';
+}
+
+function hideEmailModal() {
+    const modal = document.getElementById('emailModal');
+    if (modal) modal.style.display = 'none';
+    onEmailSubmitCallback = null;
+}
+
+// Bind Email Modal Buttons inside DOMContentLoaded
+document.addEventListener('DOMContentLoaded', () => {
+    const submitEmailBtn = document.getElementById('submitEmailBtn');
+    const cancelEmailBtn = document.getElementById('cancelEmailBtn');
+    const emailInput = document.getElementById('emailModalInput');
+
+    if (submitEmailBtn) {
+        submitEmailBtn.addEventListener('click', () => {
+            const val = emailInput ? emailInput.value.trim() : '';
+            if (val && onEmailSubmitCallback) {
+                const cb = onEmailSubmitCallback;
+                hideEmailModal();
+                cb(val);
+            }
+        });
+    }
+
+    if (cancelEmailBtn) {
+        cancelEmailBtn.addEventListener('click', hideEmailModal);
+    }
+});
+
+let currentPendingEmail = "";
+
 async function sendMagicLink(userEmail) {
     try {
-
-        const { data, error } = await supabaseClient.auth.signInWithOtp({
+        const { error } = await supabaseClient.auth.signInWithOtp({
             email: userEmail,
-            options: {
-                emailRedirectTo: 'https://gleanword.com/',
-                shouldCreateUser: true
-            }
+            options: { shouldCreateUser: true }
         });
 
         if (error) throw error;
 
-        alert(`A magic login link has been sent to ${userEmail}. Check your inbox!`);
+        currentPendingEmail = userEmail;
+        showOtpModal(userEmail);
         return true;
     } catch (err) {
+        console.error("OTP send error:", err);
         alert(`Error: ${err.message}`);
+        return false;
+    }
+}
+
+// 2. UI Modal Handlers
+function showOtpModal(email) {
+    const modal = document.getElementById('otpModal');
+    const emailDisplay = document.getElementById('otpEmailDisplay');
+    const input = document.getElementById('otpCodeInput');
+
+    if (emailDisplay) emailDisplay.textContent = email;
+    if (input) input.value = '';
+    if (modal) modal.style.display = 'flex';
+}
+
+function hideOtpModal() {
+    const modal = document.getElementById('otpModal');
+    if (modal) modal.style.display = 'none';
+}
+
+// 3. Bind Modal Buttons (Runs when page loads)
+document.addEventListener('DOMContentLoaded', () => {
+    const submitBtn = document.getElementById('submitOtpBtn');
+    const cancelBtn = document.getElementById('cancelOtpBtn');
+    const input = document.getElementById('otpCodeInput');
+
+    if (submitBtn) {
+        submitBtn.addEventListener('click', async () => {
+            const code = input.value.trim();
+            if (code.length === 6 && currentPendingEmail) {
+                await verifyOtpCode(currentPendingEmail, code);
+            } else {
+                alert("Please enter a valid 6-digit code.");
+            }
+        });
+    }
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', hideOtpModal);
+    }
+});
+
+// 4. Verification Handler
+async function verifyOtpCode(userEmail, token) {
+    try {
+        const { data, error } = await supabaseClient.auth.verifyOtp({
+            email: userEmail,
+            token: token,
+            type: 'email'
+        });
+
+        if (error) throw error;
+
+        hideOtpModal();
+        alert("Successfully signed in! Welcome back 🎉");
+        window.location.reload();
+        return true;
+    } catch (err) {
+        console.error("OTP verification error:", err);
+        alert("Invalid or expired code. Please try again.");
         return false;
     }
 }
@@ -837,7 +958,6 @@ async function handleSubscriptionFlow(userEmail) {
     const linkSent = await sendMagicLink(userEmail);
 
     if (linkSent) {
-        // 2. Trigger Paystack payment or prompt them to check email
         payWithPaystack(userEmail);
     }
 }
