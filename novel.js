@@ -833,7 +833,6 @@ function hideEmailModal() {
     onEmailSubmitCallback = null;
 }
 
-// Bind Email Modal Buttons inside DOMContentLoaded
 document.addEventListener('DOMContentLoaded', () => {
     const submitEmailBtn = document.getElementById('submitEmailBtn');
     const cancelEmailBtn = document.getElementById('cancelEmailBtn');
@@ -898,9 +897,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelBtn = document.getElementById('cancelOtpBtn');
     const input = document.getElementById('otpCodeInput');
 
-    if (submitBtn) {
-        submitBtn.addEventListener('click', async () => {
-            const code = input.value.trim();
+   if (submitBtn) {
+        submitBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const code = input ? input.value.trim() : '';
             if (code.length === 6 && currentPendingEmail) {
                 await verifyOtpCode(currentPendingEmail, code);
             } else {
@@ -908,7 +908,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-
     if (cancelBtn) {
         cancelBtn.addEventListener('click', hideOtpModal);
     }
@@ -916,26 +915,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // 4. Verification Handler
 async function verifyOtpCode(userEmail, token) {
+    const submitBtn = document.getElementById('submitOtpBtn');
+    if (submitBtn) submitBtn.disabled = true;
+
     try {
+        // 1. Check if onAuthStateChange already signed us in
+        const { data: currentSession } = await supabaseClient.auth.getSession();
+        if (currentSession?.session?.user) {
+            hideOtpModal();
+            return true;
+        }
+
+        // 2. Perform verification
         const { data, error } = await supabaseClient.auth.verifyOtp({
             email: userEmail,
             token: token,
             type: 'email'
         });
 
-        if (error) throw error;
+        if (error) {
+            // Re-check session in case the event listener consumed the token first
+            const { data: recheck } = await supabaseClient.auth.getSession();
+            if (recheck?.session?.user) {
+                hideOtpModal();
+                return true;
+            }
+            throw error;
+        }
 
         hideOtpModal();
         alert("Successfully signed in! Welcome back 🎉");
-        window.location.reload();
         return true;
+
     } catch (err) {
         console.error("OTP verification error:", err);
         alert("Invalid or expired code. Please try again.");
+        if (submitBtn) submitBtn.disabled = false;
         return false;
     }
 }
-
 // Listen for login events (e.g., returning from Magic Link redirect)
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
     if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
