@@ -432,10 +432,10 @@ function payWithPaystack(userEmail) {
 async function grantUserAccess(userEmail) {
     try {
         // 1. Check if user is currently logged into the app
-        const { data: { session } } = await supabaseClient.auth.getSession();
-
+        const { data: session } = await supabaseClient.auth.getSession();
+        
         if (session?.user) {
-            // 2A. USER IS LOGGED IN: Instantly set is_subscribed = true in Supabase
+            // 2A. USER IS LOGGED IN: Instantly set is_subscribed = true
             const { error } = await supabaseClient
                 .from('profiles')
                 .update({ is_subscribed: true })
@@ -443,34 +443,29 @@ async function grantUserAccess(userEmail) {
 
             if (error) throw error;
 
-            alert("🎉 Payment successful! Premium subscription activated.");
-
-            // Sync local storage and refresh drawer UI
+            alert("Payment successful! Premium subscription activated 🎉");
             localStorage.setItem('isSubscribed', 'true');
-            if (typeof updateDrawerSubscriptionState === 'function') {
-                await updateDrawerSubscriptionState();
-            }
-            window.location.reload();
-
+            if (typeof updateDrawerSubscriptionState === 'function') await updateDrawerSubscriptionState();
+            if (typeof renderCurrentChapter === 'function' && window.currentChapter) renderCurrentChapter();
         } else {
-            // 2B. USER IS NOT LOGGED IN: Send Magic Link so they can access their subscription
-            const { data, error } = await supabaseClient.auth.signInWithOtp({
-                email: userEmail,
-                options: {
-                    shouldCreateUser: true,
-                    // Add this line right here to fix the 404 redirection issue:
-                    emailRedirectTo: window.location.href.split('?')[0]
-                }
+            // 2B. USER IS NOT LOGGED IN: Request 6-digit OTP instead of magic link
+            const cleanEmail = userEmail.trim().toLowerCase();
+            currentPendingEmail = cleanEmail;
+            localStorage.setItem('pending_subscription_email', cleanEmail);
+
+            const { error } = await supabaseClient.auth.signInWithOtp({
+                email: cleanEmail,
+                options: { shouldCreateUser: true } // Creates account if new, no redirect link needed!
             });
 
             if (error) throw error;
 
-            alert(`Payment received! We sent a 1-click magic access link to ${userEmail}. Check your inbox to complete sign-in.`);
+            // Open your clean 6-digit OTP modal instead of waiting for a link
+            showOtpModal(cleanEmail);
         }
-
     } catch (err) {
         console.error("Grant access error:", err);
-        alert("Payment was successful, but updating subscription failed. Please contact support.");
+        alert("Payment was successful, but initiating verification failed: " + err.message);
     }
 }
 
@@ -966,14 +961,14 @@ async function verifyOtpCode(userEmail, token) {
     if (submitBtn) submitBtn.disabled = true;
 
     try {
-        // 1. First attempt verification with type 'magiclink' (standard for OTP sign-ins)
+        // 1. Attempt verification with type 'magiclink'
         let { data, error } = await supabaseClient.auth.verifyOtp({
             email: emailToVerify,
             token: cleanToken,
             type: 'magiclink'
         });
 
-        // 2. Fallback to type 'signup' if the user is verifying a brand-new account
+        // 2. Fallback to 'signup' type for brand new accounts
         if (error) {
             const signupAttempt = await supabaseClient.auth.verifyOtp({
                 email: emailToVerify,
@@ -986,26 +981,35 @@ async function verifyOtpCode(userEmail, token) {
 
         if (error) throw error;
 
-        // 3. Retrieve session state
+        // 3. Retrieve authenticated user session
         const { data: sessionCheck } = await supabaseClient.auth.getSession();
         const activeUser = data?.user || sessionCheck?.session?.user;
 
         if (activeUser) {
-            // Check if there is a pending subscription payment stored
-            const pendingPaymentEmail = localStorage.getItem('pending_subscription_email');
-            if (pendingPaymentEmail && pendingPaymentEmail.toLowerCase() === emailToVerify) {
-                await supabaseClient
+            const rawPending = localStorage.getItem('pending_subscription_email');
+            const pendingPaymentEmail = rawPending ? rawPending.trim().toLowerCase() : null;
+
+            // Upgrade user if they have a pending payment OR if pending email matches current session
+            if (pendingPaymentEmail && (pendingPaymentEmail === emailToVerify || pendingPaymentEmail === activeUser.email?.toLowerCase())) {
+                const { error: updateError } = await supabaseClient
                     .from('profiles')
                     .update({ is_subscribed: true })
                     .eq('id', activeUser.id);
 
-                localStorage.removeItem('pending_subscription_email');
-                alert("Payment verified! Welcome to GleanWord Premium 🎉");
+                if (updateError) {
+                    console.error("Supabase profile upgrade error:", updateError);
+                    alert("Signed in, but failed to upgrade subscription: " + updateError.message);
+                } else {
+                    localStorage.removeItem('pending_subscription_email');
+                    alert("Payment verified successfully! Welcome to GleanWord Premium 🎉");
+                }
             } else {
                 alert("Successfully signed in! Welcome back 🎉");
             }
 
             hideOtpModal();
+
+            // Refresh UI and chapter content instantly
             if (typeof updateDrawerSubscriptionState === 'function') await updateDrawerSubscriptionState();
             if (typeof renderCurrentChapter === 'function' && window.currentChapter) renderCurrentChapter();
             return true;
@@ -1014,7 +1018,7 @@ async function verifyOtpCode(userEmail, token) {
     } catch (err) {
         console.error("OTP verification error:", err);
 
-        // Fail-safe check in case session was established in background
+        // Fail-safe session check
         const { data: finalCheck } = await supabaseClient.auth.getSession();
         if (finalCheck?.session?.user) {
             hideOtpModal();
