@@ -1,3 +1,5 @@
+let currentPendingEmail = "";
+
 const SUPABASE_URL = 'https://bvdcddrjhxoqaslivqiu.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_ipYUkqRL10LZr_99aq4hGw_LRas0xUY';
 
@@ -740,7 +742,8 @@ async function promptSubscriberSignIn() {
     showEmailModal("Sign In", "Enter your email address to receive a 6-digit access code:", async (email) => {
         if (email && email.includes('@')) {
             const cleanEmail = email.trim().toLowerCase();
-            
+            currentPendingEmail = cleanEmail; // <--- THIS WAS MISSING!
+
             // Request 6-digit OTP code from Supabase
             const { error } = await supabaseClient.auth.signInWithOtp({
                 email: cleanEmail,
@@ -880,7 +883,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-let currentPendingEmail = "";
 
 async function sendMagicLink(userEmail) {
     try {
@@ -901,13 +903,16 @@ async function sendMagicLink(userEmail) {
     }
 }
 
-// 2. UI Modal Handlers
 function showOtpModal(email) {
+    if (email) {
+        currentPendingEmail = email.trim().toLowerCase();
+    }
+
     const modal = document.getElementById('otpModal');
     const emailDisplay = document.getElementById('otpEmailDisplay');
     const input = document.getElementById('otpCodeInput');
 
-    if (emailDisplay) emailDisplay.textContent = email;
+    if (emailDisplay) emailDisplay.textContent = currentPendingEmail || email;
     if (input) input.value = '';
     if (modal) modal.style.display = 'flex';
 }
@@ -923,12 +928,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelBtn = document.getElementById('cancelOtpBtn');
     const input = document.getElementById('otpCodeInput');
 
-   if (submitBtn) {
+  if (submitBtn) {
         submitBtn.addEventListener('click', async (e) => {
             e.preventDefault();
             const code = input ? input.value.trim() : '';
-            if (code.length === 6 && currentPendingEmail) {
-                await verifyOtpCode(currentPendingEmail, code);
+            
+            // Fallback: If currentPendingEmail is somehow blank, try reading from DOM or localStorage
+            const emailToUse = currentPendingEmail || 
+                               (document.getElementById('otpEmailDisplay')?.textContent || '').trim() ||
+                               localStorage.getItem('pending_subscription_email');
+
+            if (code.length === 6 && emailToUse) {
+                await verifyOtpCode(emailToUse, code);
+            } else if (!emailToUse) {
+                alert("Session email lost. Please re-enter your email.");
             } else {
                 alert("Please enter a valid 6-digit code.");
             }
@@ -941,27 +954,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // 4. Verification Handler
 async function verifyOtpCode(userEmail, token) {
+    const emailToVerify = (userEmail || currentPendingEmail || '').trim().toLowerCase();
+    const cleanToken = (token || '').trim();
+
+    if (!emailToVerify || cleanToken.length !== 6) {
+        alert("Please enter a valid 6-digit code.");
+        return false;
+    }
+
     const submitBtn = document.getElementById('submitOtpBtn');
     if (submitBtn) submitBtn.disabled = true;
 
     try {
-        // 1. Attempt OTP verification with Supabase
-        const { data, error } = await supabaseClient.auth.verifyOtp({
-            email: userEmail,
-            token: token,
-            type: 'email'
+        // 1. First attempt verification with type 'magiclink' (standard for OTP sign-ins)
+        let { data, error } = await supabaseClient.auth.verifyOtp({
+            email: emailToVerify,
+            token: cleanToken,
+            type: 'magiclink'
         });
 
-        // 2. Retrieve session state (handles both direct verify and background auth change)
+        // 2. Fallback to type 'signup' if the user is verifying a brand-new account
+        if (error) {
+            const signupAttempt = await supabaseClient.auth.verifyOtp({
+                email: emailToVerify,
+                token: cleanToken,
+                type: 'signup'
+            });
+            data = signupAttempt.data;
+            error = signupAttempt.error;
+        }
+
+        if (error) throw error;
+
+        // 3. Retrieve session state
         const { data: sessionCheck } = await supabaseClient.auth.getSession();
         const activeUser = data?.user || sessionCheck?.session?.user;
 
-        // 3. If authenticated successfully:
         if (activeUser) {
             // Check if there is a pending subscription payment stored
-            const pendingEmail = localStorage.getItem('pending_subscription_email');
-            if (pendingEmail) {
-                // Upgrade profile to premium in Supabase database
+            const pendingPaymentEmail = localStorage.getItem('pending_subscription_email');
+            if (pendingPaymentEmail && pendingPaymentEmail.toLowerCase() === emailToVerify) {
                 await supabaseClient
                     .from('profiles')
                     .update({ is_subscribed: true })
@@ -979,15 +1011,15 @@ async function verifyOtpCode(userEmail, token) {
             return true;
         }
 
-        if (error) throw error;
-
     } catch (err) {
         console.error("OTP verification error:", err);
 
-        // Fail-safe session check before displaying an error alert
+        // Fail-safe check in case session was established in background
         const { data: finalCheck } = await supabaseClient.auth.getSession();
         if (finalCheck?.session?.user) {
             hideOtpModal();
+            if (typeof updateDrawerSubscriptionState === 'function') await updateDrawerSubscriptionState();
+            if (typeof renderCurrentChapter === 'function' && window.currentChapter) renderCurrentChapter();
             return true;
         }
 
