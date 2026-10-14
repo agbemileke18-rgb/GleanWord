@@ -393,7 +393,7 @@ function handleSwipeGesture() {
 }
 
 function showPaymentSuccessModal() {
-    const modalHtml = `
+  const modalHtml = `
     <div id="payment-success-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px;">
       <div style="background:#1e1e2e; color:#fff; padding:28px; border-radius:16px; max-width:400px; width:100%; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.5); border:1px solid #333;">
         <div style="font-size:40px; margin-bottom:10px;">🎉</div>
@@ -402,11 +402,20 @@ function showPaymentSuccessModal() {
         <div style="background:#2a2a3c; padding:12px; border-radius:8px; margin:15px 0; text-align:left; font-size:13px; color:#e0e0e0;">
           💡 <strong>Next Step:</strong> Please <strong>Sign In</strong> using the email you just paid with to unlock your chapters.
         </div>
-        <button onclick="document.getElementById('payment-success-modal').remove(); if(typeof showLoginModal === 'function') showLoginModal();" style="background:#4caf50; color:#fff; border:none; padding:12px 24px; border-radius:8px; cursor:pointer; font-weight:bold; width:100%; font-size:15px;">Sign In Now</button>
+        <button id="modal-signin-btn" style="background:#4caf50; color:#fff; border:none; padding:12px 24px; border-radius:8px; cursor:pointer; font-weight:bold; width:100%; font-size:15px;">Sign In Now</button>
       </div>
     </div>
   `;
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  // Hook directly into your existing sign-in flow
+  document.getElementById('modal-signin-btn').onclick = function() {
+    document.getElementById('payment-success-modal').remove();
+    if (typeof closeDrawer === 'function') closeDrawer();
+    if (typeof promptSubscriberSignIn === 'function') {
+      promptSubscriberSignIn();
+    }
+  };
 }
 
 function payWithPaystack(userEmail) {
@@ -453,7 +462,6 @@ async function initiateSubscription() {
     try {
         let userEmail = null;
 
-        // 1. Check if the reader happens to already be signed in
         if (typeof supabaseClient !== 'undefined' && supabaseClient.auth) {
             const { data } = await supabaseClient.auth.getUser();
             userEmail = data?.user?.email;
