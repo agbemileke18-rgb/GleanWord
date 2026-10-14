@@ -392,6 +392,46 @@ function handleSwipeGesture() {
     }
 }
 
+// Function to handle instant subscription sync or show modal
+async function handlePostPaymentSync() {
+  try {
+    // 1. If user is currently signed in, force session & UI refresh
+    if (typeof supabaseClient !== 'undefined' && supabaseClient.auth) {
+      const { data: { session } } = await supabaseClient.auth.refreshSession();
+      if (session?.user) {
+        // Refresh drawer and chapter UI automatically
+        if (typeof updateDrawerSubscriptionState === 'function') await updateDrawerSubscriptionState();
+        if (typeof renderCurrentChapter === 'function') renderCurrentChapter();
+        
+        alert("🎉 Payment confirmed! Your Premium subscription is now active.");
+        return;
+      }
+    }
+  } catch (err) {
+    console.error("Auto-sync error:", err);
+  }
+
+  // 2. Fallback for new/signed-out users: Show friendly guidance modal
+  showPaymentSuccessModal();
+}
+
+function showPaymentSuccessModal() {
+  const modalHtml = `
+    <div id="payment-success-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px;">
+      <div style="background:#1e1e2e; color:#fff; padding:28px; border-radius:16px; max-width:400px; width:100%; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.5); border:1px solid #333;">
+        <div style="font-size:40px; margin-bottom:10px;">🎉</div>
+        <h3 style="margin:0 0 10px 0; color:#4caf50; font-size:22px;">Payment Successful!</h3>
+        <p style="color:#ccc; font-size:14px; line-height:1.5;">Thank you for subscribing to GleanWord Premium!</p>
+        <div style="background:#2a2a3c; padding:12px; border-radius:8px; margin:15px 0; text-align:left; font-size:13px; color:#e0e0e0;">
+          💡 <strong>Next Step:</strong> Please <strong>Sign In</strong> using the email you just paid with to unlock your chapters.
+        </div>
+        <button onclick="document.getElementById('payment-success-modal').remove(); if(typeof showLoginModal === 'function') showLoginModal();" style="background:#4caf50; color:#fff; border:none; padding:12px 24px; border-radius:8px; cursor:pointer; font-weight:bold; width:100%; font-size:15px;">Sign In Now</button>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
 function payWithPaystack(userEmail) {
     console.log("Starting Paystack initialization for:", userEmail);
 
@@ -410,12 +450,8 @@ function payWithPaystack(userEmail) {
             ref: 'sub_' + Math.floor((Math.random() * 1000000000) + 1),
             callback: function (response) {
                 console.log('Payment complete! Reference:', response.reference);
-
-                // Clear out any unneeded errors and just notify the user gracefully
-                alert('Payment successful! Your account has been provisioned. You can now log in with your email.');
-
-                // Optional: Redirect them to your login or dashboard page
-                window.location.href = '/login.html';
+                // Automatically refresh session or show guidance modal
+                handlePostPaymentSync();
             },
             onClose: function () {
                 console.log('Transaction window closed.');
@@ -446,14 +482,11 @@ async function initiateSubscription() {
             userEmail = data?.user?.email;
         }
 
-        // 2. If logged in, launch Paystack directly with their existing email
         if (userEmail) {
             payWithPaystack(userEmail);
             return;
         }
 
-        // 3. For guest readers (99% of first-time subscribers):
-        // Show the custom email modal to collect their email before opening Paystack
         showEmailModal("Subscribe", "Enter your email address to subscribe:", (email) => {
             isProcessingPayment = false;
             if (email && email.includes('@')) {
@@ -524,7 +557,6 @@ function closePaywallModal() {
     }
 }
 
-// Wire up modal pay button to Paystack checkout
 document.getElementById('modal-pay-btn')?.addEventListener('click', () => {
     closePaywallModal();
     if (typeof initiateSubscription === 'function') {
