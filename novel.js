@@ -433,6 +433,7 @@ function payWithPaystack(userEmail) {
             email: userEmail,
             amount: 1000 * 100, // ₦1,000 in kobo
             currency: 'NGN',
+            plan: 'PLN_ztae9rndjeto3kr',
             ref: 'sub_' + Math.floor((Math.random() * 1000000000) + 1),
             callback: function (response) {
                 console.log('Payment complete! Reference:', response.reference);
@@ -454,7 +455,6 @@ function payWithPaystack(userEmail) {
 
 let isProcessingPayment = false;
 
-// Unified Subscription Function
 async function initiateSubscription() {
     if (isProcessingPayment) return;
     isProcessingPayment = true;
@@ -490,7 +490,6 @@ async function initiateSubscription() {
     }
 }
 
-// Single Event Listener for ALL Subscribe Buttons
 document.addEventListener('click', (e) => {
     const target = e.target;
     // Match closest button or element with ID or Class
@@ -560,7 +559,6 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-// Route the inline blue reader subscribe button to the working dashboard checkout
 document.addEventListener('click', (e) => {
     const target = e.target;
     if (target && (target.id === 'reader-subscribe-btn' || target.innerText?.includes('Subscribe'))) {
@@ -648,14 +646,14 @@ async function updateDrawerSubscriptionState() {
         if (subBtn) {
             subBtn.textContent = '👑 Premium User';
             subBtn.classList.add('premium-user');
-            subBtn.onclick = null; // Disable trigger for active subscribers
+            subBtn.onclick = null; 
         }
     } else {
         if (emailDisplay) {
             emailDisplay.textContent = session?.user ? userEmail : 'Welcome, Reader!';
         }
         if (subBtn) {
-            subBtn.textContent = 'Subscribe for ₦1,000';
+            subBtn.textContent = 'Subscribe for ₦1,000/month';
             subBtn.classList.remove('premium-user');
             subBtn.onclick = (e) => {
                 e.stopPropagation();
@@ -709,7 +707,6 @@ async function handleSignOut() {
     }
 }
 
-// 2. SIGN IN FOR RETURNING SUBSCRIBERS
 async function promptSubscriberSignIn() {
     // Show clean email input modal instead of browser prompt
     showEmailModal("Sign In", "Enter your email address to receive a 6-digit access code:", async (email) => {
@@ -954,7 +951,6 @@ async function verifyOtpCode(userEmail, token) {
         return false;
     }
 }
-// Listen for login events (e.g., returning from Magic Link redirect)
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
     if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
         console.log('User signed in successfully:', session.user.email);
@@ -964,7 +960,6 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
             await updateDrawerSubscriptionState();
         }
 
-        // 2. Re-render current chapter to reveal subscriber content
         if (typeof renderCurrentChapter === 'function') {
             renderCurrentChapter();
         }
