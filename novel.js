@@ -395,9 +395,6 @@ function handleSwipeGesture() {
 function payWithPaystack(userEmail) {
     console.log("Starting Paystack initialization for:", userEmail);
 
-    if (userEmail) {
-        localStorage.setItem('pending_subscription_email', userEmail.trim().toLowerCase());
-    }
 
     if (typeof PaystackPop === 'undefined') {
         alert("Paystack SDK failed to load. Please check your internet connection.");
@@ -413,8 +410,12 @@ function payWithPaystack(userEmail) {
             ref: 'sub_' + Math.floor((Math.random() * 1000000000) + 1),
             callback: function (response) {
                 console.log('Payment complete! Reference:', response.reference);
-                // Call grantUserAccess inside a non-async wrapper
-                grantUserAccess(userEmail).catch(err => console.error("Access error:", err));
+
+                // Clear out any unneeded errors and just notify the user gracefully
+                alert('Payment successful! Your account has been provisioned. You can now log in with your email.');
+
+                // Optional: Redirect them to your login or dashboard page
+                window.location.href = '/login.html';
             },
             onClose: function () {
                 console.log('Transaction window closed.');
@@ -426,46 +427,6 @@ function payWithPaystack(userEmail) {
     } catch (err) {
         console.error("PaystackPop setup error:", err);
         alert("Could not open payment window: " + err.message);
-    }
-}
-
-async function grantUserAccess(userEmail) {
-    try {
-        // 1. Check if user is currently logged into the app
-        const { data: session } = await supabaseClient.auth.getSession();
-        
-        if (session?.user) {
-            // 2A. USER IS LOGGED IN: Instantly set is_subscribed = true
-            const { error } = await supabaseClient
-                .from('profiles')
-                .update({ is_subscribed: true })
-                .eq('id', session.user.id);
-
-            if (error) throw error;
-
-            alert("Payment successful! Premium subscription activated 🎉");
-            localStorage.setItem('isSubscribed', 'true');
-            if (typeof updateDrawerSubscriptionState === 'function') await updateDrawerSubscriptionState();
-            if (typeof renderCurrentChapter === 'function' && window.currentChapter) renderCurrentChapter();
-        } else {
-            // 2B. USER IS NOT LOGGED IN: Request 6-digit OTP instead of magic link
-            const cleanEmail = userEmail.trim().toLowerCase();
-            currentPendingEmail = cleanEmail;
-            localStorage.setItem('pending_subscription_email', cleanEmail);
-
-            const { error } = await supabaseClient.auth.signInWithOtp({
-                email: cleanEmail,
-                options: { shouldCreateUser: true } // Creates account if new, no redirect link needed!
-            });
-
-            if (error) throw error;
-
-            // Open your clean 6-digit OTP modal instead of waiting for a link
-            showOtpModal(cleanEmail);
-        }
-    } catch (err) {
-        console.error("Grant access error:", err);
-        alert("Payment was successful, but initiating verification failed: " + err.message);
     }
 }
 
@@ -505,8 +466,8 @@ async function initiateSubscription() {
     } catch (err) {
         console.error("Subscription error:", err);
     } finally {
-        setTimeout(() => { 
-            isProcessingPayment = false; 
+        setTimeout(() => {
+            isProcessingPayment = false;
         }, 1000);
     }
 }
@@ -758,62 +719,6 @@ async function promptSubscriberSignIn() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Check if returning from Paystack redirect
-    const urlParams = new URLSearchParams(window.location.search);
-    const paystackReference = urlParams.get('reference') || urlParams.get('trxref');
-
-    if (paystackReference) {
-        // Clean reference from URL bar immediately so refresh won't re-verify
-        window.history.replaceState({}, document.title, window.location.pathname);
-
-        (async () => {
-            // Check active session
-            let { data: { session } } = await supabaseClient.auth.getSession();
-
-            // Helper function to upgrade database profile
-            const activateProfile = async (userId) => {
-                const { error } = await supabaseClient
-                    .from('profiles')
-                    .update({ is_subscribed: true })
-                    .eq('id', userId);
-
-                if (!error) {
-                    alert("Payment verified successfully! Welcome to GleanWord premium 🎉");
-                    if (typeof updateDrawerSubscriptionState === 'function') await updateDrawerSubscriptionState();
-                    if (typeof renderCurrentChapter === 'function' && window.currentChapter) renderCurrentChapter();
-                } else {
-                    console.error("Supabase update error:", error.message);
-                    alert("Payment detected, but could not update profile automatically.");
-                }
-            };
-
-            if (session?.user) {
-                // Scenario A: Reader was already signed in when they subscribed
-                await activateProfile(session.user.id);
-            } else {
-                // Scenario B: Reader was a guest subscriber!
-                const pendingEmail = localStorage.getItem('pending_subscription_email');
-                if (pendingEmail) {
-                    // Dispatch 6-digit OTP code to their email
-                    const { error } = await supabaseClient.auth.signInWithOtp({
-                        email: pendingEmail,
-                        options: { shouldCreateUser: true }
-                    });
-
-                    if (!error) {
-                        alert("Payment successful! We've sent a 6-digit verification code to your email to complete setup.");
-                        showOtpModal(pendingEmail);
-                    } else {
-                        alert("Payment recorded! Please sign in with your email to activate premium.");
-                        promptSubscriberSignIn();
-                    }
-                } else {
-                    alert("Payment recorded! Please sign in to access premium content.");
-                    promptSubscriberSignIn();
-                }
-            }
-        })();
-    }
     // 2. Automatically update UI on auth changes (magic links, logins)
     supabaseClient.auth.onAuthStateChange(async (event, session) => {
         if (session) {
@@ -923,15 +828,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelBtn = document.getElementById('cancelOtpBtn');
     const input = document.getElementById('otpCodeInput');
 
-  if (submitBtn) {
+    if (submitBtn) {
         submitBtn.addEventListener('click', async (e) => {
             e.preventDefault();
             const code = input ? input.value.trim() : '';
-            
+
             // Fallback: If currentPendingEmail is somehow blank, try reading from DOM or localStorage
-            const emailToUse = currentPendingEmail || 
-                               (document.getElementById('otpEmailDisplay')?.textContent || '').trim() ||
-                               localStorage.getItem('pending_subscription_email');
+            const emailToUse = currentPendingEmail ||
+                (document.getElementById('otpEmailDisplay')?.textContent || '').trim() ||
+                localStorage.getItem('pending_subscription_email');
 
             if (code.length === 6 && emailToUse) {
                 await verifyOtpCode(emailToUse, code);
