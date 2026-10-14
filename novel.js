@@ -392,31 +392,8 @@ function handleSwipeGesture() {
     }
 }
 
-// Function to handle instant subscription sync or show modal
-async function handlePostPaymentSync() {
-  try {
-    // 1. If user is currently signed in, force session & UI refresh
-    if (typeof supabaseClient !== 'undefined' && supabaseClient.auth) {
-      const { data: { session } } = await supabaseClient.auth.refreshSession();
-      if (session?.user) {
-        // Refresh drawer and chapter UI automatically
-        if (typeof updateDrawerSubscriptionState === 'function') await updateDrawerSubscriptionState();
-        if (typeof renderCurrentChapter === 'function') renderCurrentChapter();
-        
-        alert("🎉 Payment confirmed! Your Premium subscription is now active.");
-        return;
-      }
-    }
-  } catch (err) {
-    console.error("Auto-sync error:", err);
-  }
-
-  // 2. Fallback for new/signed-out users: Show friendly guidance modal
-  showPaymentSuccessModal();
-}
-
 function showPaymentSuccessModal() {
-  const modalHtml = `
+    const modalHtml = `
     <div id="payment-success-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px;">
       <div style="background:#1e1e2e; color:#fff; padding:28px; border-radius:16px; max-width:400px; width:100%; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.5); border:1px solid #333;">
         <div style="font-size:40px; margin-bottom:10px;">🎉</div>
@@ -429,7 +406,7 @@ function showPaymentSuccessModal() {
       </div>
     </div>
   `;
-  document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 
 function payWithPaystack(userEmail) {
@@ -450,8 +427,8 @@ function payWithPaystack(userEmail) {
             ref: 'sub_' + Math.floor((Math.random() * 1000000000) + 1),
             callback: function (response) {
                 console.log('Payment complete! Reference:', response.reference);
-                // Automatically refresh session or show guidance modal
-                handlePostPaymentSync();
+                // Display the sign-in guidance modal immediately
+                showPaymentSuccessModal();
             },
             onClose: function () {
                 console.log('Transaction window closed.');
