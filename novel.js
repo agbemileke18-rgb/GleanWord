@@ -58,10 +58,21 @@ function renderBooksGrid(works) {
         card.onclick = () => openReaderForWork(work);
 
         const placeholderImg = '/path/to/your/default-placeholder.png';
-
         const imageSource = work.cover_url || placeholderImg;
 
-        card.innerHTML = `<img src="${imageSource}" alt="${escapeHtml(work.title)}" class="book-cover-img">`;
+        // Build the inner HTML with cover image and a floating bookmark button
+        card.innerHTML = `
+      <div style="position: relative; width: 100%; height: 100%;">
+        <img src="${imageSource}" alt="${escapeHtml(work.title)}" class="book-cover" style="width:100%; display:block;" />
+        <button 
+          type="button"
+          onclick="event.stopPropagation(); toggleBookmark('${work.id}', \`${escapeHtml(work.title)}\`, '${work.category || ''}')" 
+          style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); border: none; border-radius: 50%; width: 36px; height: 36px; color: #fff; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; z-index: 5;" 
+          title="Save to Reading List">
+          🔖
+        </button>
+      </div>
+    `;
 
         booksGrid.appendChild(card);
     });
@@ -118,6 +129,15 @@ function renderCurrentChapter() {
         localStorage.setItem('lastReadChapterIndex', currentChapterIndex);
     }
 
+    // Bookmark listener inside reader toolbar
+    const readerBookmarkBtn = document.getElementById('reader-bookmark-btn');
+    if (readerBookmarkBtn && chapter) {
+        readerBookmarkBtn.onclick = () => {
+            const title = chapterTitleEl ? chapterTitleEl.textContent : 'GleanWord Story';
+            toggleBookmark(chapter.work_id, title, 'Story');
+        };
+    }
+
     const sectionElement = document.getElementById('reader-section-title');
     if (sectionElement) {
         sectionElement.textContent = chapter?.section_title || '';
@@ -169,6 +189,8 @@ function renderCurrentChapter() {
       </div>
     `;
     }
+
+    applyReaderPreferences();
 
     // Reset scroll position cleanly
     readerBody.scrollLeft = 0;
@@ -251,6 +273,18 @@ themeToggleBtn.addEventListener('click', () => {
         themeToggleBtn.innerHTML = '&#9790;';
     }
 });
+
+// Connect the sidebar drawer dark mode link to your existing toggle logic
+const drawerThemeBtn = document.getElementById('drawer-theme-toggle');
+if (drawerThemeBtn) {
+    drawerThemeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        // Trigger your main toggle button's click event automatically!
+        themeToggleBtn.click();
+        // Close the sidebar drawer after clicking
+        if (typeof closeDrawer === 'function') closeDrawer();
+    });
+}
 
 fontIncreaseBtn.addEventListener('click', () => {
     if (currentFontSize < 28) {
@@ -393,7 +427,7 @@ function handleSwipeGesture() {
 }
 
 function showPaymentSuccessModal() {
-  const modalHtml = `
+    const modalHtml = `
     <div id="payment-success-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px;">
       <div style="background:#1e1e2e; color:#fff; padding:28px; border-radius:16px; max-width:400px; width:100%; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.5); border:1px solid #333;">
         <div style="font-size:40px; margin-bottom:10px;">🎉</div>
@@ -406,16 +440,16 @@ function showPaymentSuccessModal() {
       </div>
     </div>
   `;
-  document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-  // Hook directly into your existing sign-in flow
-  document.getElementById('modal-signin-btn').onclick = function() {
-    document.getElementById('payment-success-modal').remove();
-    if (typeof closeDrawer === 'function') closeDrawer();
-    if (typeof promptSubscriberSignIn === 'function') {
-      promptSubscriberSignIn();
-    }
-  };
+    // Hook directly into your existing sign-in flow
+    document.getElementById('modal-signin-btn').onclick = function () {
+        document.getElementById('payment-success-modal').remove();
+        if (typeof closeDrawer === 'function') closeDrawer();
+        if (typeof promptSubscriberSignIn === 'function') {
+            promptSubscriberSignIn();
+        }
+    };
 }
 
 function payWithPaystack(userEmail) {
@@ -574,8 +608,6 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// --- SIDEBAR PROFILE DRAWER CONTROL ---
-
 const sidebarDrawer = document.getElementById('sidebar-drawer');
 const sidebarOverlay = document.getElementById('sidebar-overlay');
 const menuToggleBtn = document.getElementById('menu-toggle-btn');
@@ -592,7 +624,6 @@ function closeDrawer() {
     sidebarOverlay?.classList.remove('active');
 }
 
-// Toggle via Hamburger Button and Overlay
 menuToggleBtn?.addEventListener('click', openDrawer);
 closeDrawerBtn?.addEventListener('click', closeDrawer);
 sidebarOverlay?.addEventListener('click', closeDrawer);
@@ -646,7 +677,7 @@ async function updateDrawerSubscriptionState() {
         if (subBtn) {
             subBtn.textContent = '👑 Premium User';
             subBtn.classList.add('premium-user');
-            subBtn.onclick = null; 
+            subBtn.onclick = null;
         }
     } else {
         if (emailDisplay) {
@@ -1000,3 +1031,300 @@ installBtn?.addEventListener('click', async (e) => {
     deferredPrompt = null;
     installBtn.style.display = 'none';
 });
+
+// Function to show Reading List Modal
+function showReadingListModal() {
+    // Retrieve saved books from localStorage (or fallback to empty array)
+    const savedList = JSON.parse(localStorage.getItem('gleanword_reading_list') || '[]');
+
+    let listContentHtml = '';
+
+    if (savedList.length === 0) {
+        listContentHtml = `
+      <div style="text-align:center; padding: 20px 0; color:#888;">
+        <p style="font-size:30px; margin-bottom:8px;">📚</p>
+        <p>Your reading list is currently empty.</p>
+        <p style="font-size:12px; color:#666;">Bookmark chapters while reading to save them here!</p>
+      </div>
+    `;
+    } else {
+        listContentHtml = '<ul style="list-style:none; padding:0; margin:0; text-align:left;">';
+        savedList.forEach((item, index) => {
+            const savedChapterIdx = item.chapterIndex || 0;
+            listContentHtml += `
+        <li style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:#2a2a3c; margin-bottom:8px; border-radius:8px;">
+          <div style="cursor:pointer; flex-grow:1;" onclick="openBookFromReadingList('${item.id}', ${savedChapterIdx})">
+            <strong style="color:#fff; font-size:14px; display:block;">${item.title}</strong>
+            <span style="font-size:11px; color:#aaa; text-transform:capitalize;">${item.category || 'Story'}</span>
+          </div>
+          <button onclick="removeReadingListItem(${index})" style="background:transparent; border:none; color:#ff5555; cursor:pointer; font-weight:bold; font-size:16px; padding:4px 8px;">✕</button>
+        </li>
+      `;
+        });
+        listContentHtml += '</ul>';
+    }
+
+    const modalHtml = `
+    <div id="reading-list-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px;">
+      <div style="background:#1e1e2e; color:#fff; padding:24px; border-radius:16px; max-width:420px; width:100%; box-shadow:0 10px 30px rgba(0,0,0,0.5); border:1px solid #333;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:10px;">
+          <h3 style="margin:0; font-size:18px;">📖 My Reading List</h3>
+          <button onclick="document.getElementById('reading-list-modal').remove()" style="background:transparent; border:none; color:#fff; font-size:18px; cursor:pointer;">✕</button>
+        </div>
+        ${listContentHtml}
+      </div>
+    </div>
+  `;
+
+    // Remove existing if open
+    const existing = document.getElementById('reading-list-modal');
+    if (existing) existing.remove();
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+// Helper to safely open a work from the reading list
+// Helper to safely open a work and target chapter from reading list
+async function openBookFromReadingList(workId, targetChapterIndex = 0) {
+    // 1. Close modal
+    const modal = document.getElementById('reading-list-modal');
+    if (modal) modal.remove();
+
+    try {
+        // 2. Fetch full work details
+        const { data: work, error } = await supabaseClient
+            .from('works')
+            .select('*')
+            .eq('id', workId)
+            .single();
+
+        if (error || !work) {
+            alert('Could not load this story. Please try again.');
+            return;
+        }
+
+        // 3. Open work
+        await openReaderForWork(work);
+
+        // 4. Force reader to jump to saved chapter index without resetting
+        if (typeof currentWorkChapters !== 'undefined' && currentWorkChapters.length > targetChapterIndex) {
+            currentChapterIndex = targetChapterIndex;
+            renderCurrentChapter();
+        }
+    } catch (err) {
+        console.error('Error opening book from list:', err);
+    }
+}
+
+// Function to remove an item from list
+function removeReadingListItem(index) {
+    let savedList = JSON.parse(localStorage.getItem('gleanword_reading_list') || '[]');
+    savedList.splice(index, 1);
+    localStorage.setItem('gleanword_reading_list', JSON.stringify(savedList));
+    showReadingListModal(); // Re-render modal
+}
+
+// Hook up drawer button listener
+const readingListBtn = document.getElementById('drawer-reading-list-btn');
+if (readingListBtn) {
+    readingListBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (typeof closeDrawer === 'function') closeDrawer();
+        showReadingListModal();
+    });
+}
+
+// Function to toggle a book in the reading list
+// Function to save or update a book in the reading list
+function toggleBookmark(workId, title, category, chapterIndex = 0) {
+    let savedList = JSON.parse(localStorage.getItem('gleanword_reading_list') || '[]');
+
+    const existingIndex = savedList.findIndex(item => item.id === workId);
+    const targetChapterIdx = typeof currentChapterIndex !== 'undefined' ? currentChapterIndex : chapterIndex;
+
+    if (existingIndex > -1) {
+        // Book is already in the list: update it to the new chapter position instead of removing it
+        savedList[existingIndex].chapterIndex = targetChapterIdx;
+        savedList[existingIndex].title = title;
+        savedList[existingIndex].addedAt = new Date().toISOString();
+        alert(`Reading list updated for "${title}"! 🔖`);
+    } else {
+        // Add new entry to the list
+        savedList.push({
+            id: workId,
+            title: title,
+            category: category,
+            chapterIndex: targetChapterIdx,
+            addedAt: new Date().toISOString()
+        });
+        alert(`Saved "${title}" to your Reading List! 📚`);
+    }
+
+    localStorage.setItem('gleanword_reading_list', JSON.stringify(savedList));
+}
+
+// Default preferences state
+let currentFontFamily = localStorage.getItem('gleanword_font_family') || 'sans-serif';
+let currentLineHeight = localStorage.getItem('gleanword_line_height') || '1.6';
+
+// Apply stored preferences on page load
+function applyReaderPreferences() {
+    const readerBody = document.getElementById('reader-body');
+    if (readerBody) {
+        readerBody.style.fontFamily = currentFontFamily;
+        readerBody.style.lineHeight = currentLineHeight;
+    }
+}
+
+// Open Reader Preferences Modal
+function showReaderPreferencesModal() {
+    const modalHtml = `
+    <div id="preferences-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px;">
+      <div style="background:#1e1e2e; color:#fff; padding:24px; border-radius:16px; max-width:400px; width:100%; box-shadow:0 10px 30px rgba(0,0,0,0.5); border:1px solid #333;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid #333; padding-bottom:10px;">
+          <h3 style="margin:0; font-size:18px;">⚙️ Reader Preferences</h3>
+          <button onclick="document.getElementById('preferences-modal').remove()" style="background:transparent; border:none; color:#fff; font-size:18px; cursor:pointer;">✕</button>
+        </div>
+
+        <!-- Font Size Controls -->
+        <div style="margin-bottom:20px;">
+          <label style="display:block; font-size:14px; margin-bottom:8px; color:#aaa;">Font Size</label>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <button id="pref-font-dec" style="background:#2a2a3c; border:1px solid #444; color:#fff; padding:8px 16px; border-radius:8px; cursor:pointer; font-size:16px;">A-</button>
+            <span id="pref-font-size-label" style="font-weight:bold; font-size:16px;">${currentFontSize}px</span>
+            <button id="pref-font-inc" style="background:#2a2a3c; border:1px solid #444; color:#fff; padding:8px 16px; border-radius:8px; cursor:pointer; font-size:16px;">A+</button>
+          </div>
+        </div>
+
+        <!-- Font Family Selection -->
+        <div style="margin-bottom:20px;">
+          <label style="display:block; font-size:14px; margin-bottom:8px; color:#aaa;">Font Style</label>
+          <select id="pref-font-family" style="width:100%; background:#2a2a3c; border:1px solid #444; color:#fff; padding:10px; border-radius:8px; font-size:14px; outline:none;">
+            <option value="sans-serif" ${currentFontFamily === 'sans-serif' ? 'selected' : ''}>Sans-Serif (Modern)</option>
+            <option value="Georgia, serif" ${currentFontFamily === 'Georgia, serif' ? 'selected' : ''}>Serif (Bookish)</option>
+            <option value="monospace" ${currentFontFamily === 'monospace' ? 'selected' : ''}>Monospace (Code/Typewriter)</option>
+          </select>
+        </div>
+
+        <!-- Line Height Selection -->
+        <div style="margin-bottom:20px;">
+          <label style="display:block; font-size:14px; margin-bottom:8px; color:#aaa;">Line Spacing</label>
+          <select id="pref-line-height" style="width:100%; background:#2a2a3c; border:1px solid #444; color:#fff; padding:10px; border-radius:8px; font-size:14px; outline:none;">
+            <option value="1.4" ${currentLineHeight === '1.4' ? 'selected' : ''}>Compact</option>
+            <option value="1.6" ${currentLineHeight === '1.6' ? 'selected' : ''}>Normal</option>
+            <option value="1.9" ${currentLineHeight === '1.9' ? 'selected' : ''}>Relaxed</option>
+          </select>
+        </div>
+
+        <button onclick="document.getElementById('preferences-modal').remove()" style="width:100%; background:#4f46e5; border:none; color:#fff; padding:12px; border-radius:8px; font-weight:bold; cursor:pointer; font-size:14px; margin-top:10px;">Done</button>
+      </div>
+    </div>
+  `;
+
+    // Remove existing modal if present
+    const existing = document.getElementById('preferences-modal');
+    if (existing) existing.remove();
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    // Hook up Font Size decrease button in modal
+    document.getElementById('pref-font-dec').addEventListener('click', () => {
+        if (fontDecreaseBtn) fontDecreaseBtn.click();
+        document.getElementById('pref-font-size-label').textContent = `${currentFontSize}px`;
+    });
+
+    // Hook up Font Size increase button in modal
+    document.getElementById('pref-font-inc').addEventListener('click', () => {
+        if (fontIncreaseBtn) fontIncreaseBtn.click();
+        document.getElementById('pref-font-size-label').textContent = `${currentFontSize}px`;
+    });
+
+    // Hook up Font Family select
+    document.getElementById('pref-font-family').addEventListener('change', (e) => {
+        currentFontFamily = e.target.value;
+        localStorage.setItem('gleanword_font_family', currentFontFamily);
+        applyReaderPreferences();
+    });
+
+    // Hook up Line Height select
+    document.getElementById('pref-line-height').addEventListener('change', (e) => {
+        currentLineHeight = e.target.value;
+        localStorage.setItem('gleanword_line_height', currentLineHeight);
+        applyReaderPreferences();
+    });
+}
+
+// Hook up drawer button listener
+const readerPrefBtn = document.getElementById('drawer-reader-preferences-btn');
+if (readerPrefBtn) {
+    readerPrefBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (typeof closeDrawer === 'function') closeDrawer();
+        showReaderPreferencesModal();
+    });
+}
+
+// Apply stored preferences on page startup
+applyReaderPreferences();
+
+// Open Help & Support Modal
+function showHelpSupportModal() {
+    const modalHtml = `
+    <div id="help-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px;">
+      <div style="background:#1e1e2e; color:#fff; padding:24px; border-radius:16px; max-width:450px; width:100%; max-height:85vh; overflow-y:auto; box-shadow:0 10px 30px rgba(0,0,0,0.5); border:1px solid #333;">
+        
+        <!-- Header -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid #333; padding-bottom:10px;">
+          <h3 style="margin:0; font-size:18px;">❓ Help & Support</h3>
+          <button onclick="document.getElementById('help-modal').remove()" style="background:transparent; border:none; color:#fff; font-size:18px; cursor:pointer;">✕</button>
+        </div>
+
+        <!-- FAQ Section -->
+        <div style="font-size:14px; color:#ddd; display:flex; flex-direction:column; gap:16px;">
+          <div>
+            <strong style="color:#fff; display:block; margin-bottom:4px;">📚 How do I save a story?</strong>
+            <p style="margin:0; color:#aaa; font-size:13px;">Click the bookmark icon while reading any chapter. It will automatically save your spot and add the story to your <strong>My Reading List</strong> drawer.</p>
+          </div>
+
+          <div>
+            <strong style="color:#fff; display:block; margin-bottom:4px;">💳 How does the subscription work?</strong>
+            <p style="margin:0; color:#aaa; font-size:13px;">Subscribing gives you instant, unlimited access to premium chapters via secure Paystack processing.</p>
+          </div>
+
+          <div>
+            <strong style="color:#fff; display:block; margin-bottom:4px;">⚙️ Can I change font styles or sizes?</strong>
+            <p style="margin:0; color:#aaa; font-size:13px;">Yes! Open the <strong>Reader Preferences</strong> menu from the sidebar to customize your font style, text size, and line spacing.</p>
+          </div>
+
+         <div style="background:#2a2a3c; padding:12px; border-radius:8px; margin-top:8px;">
+  <strong style="color:#fff; display:block; margin-bottom:4px;">Need further assistance?</strong>
+  <p style="margin:0; color:#aaa; font-size:13px;">
+    If you encounter any bugs or payment issues, reach out to support at 
+    <a href="mailto:agbemileke18@gmail.com" style="color:#6366f1; font-weight:bold; text-decoration:underline;">agbemileke18@gmail.com</a>.
+  </p>
+</div>
+        </div>
+
+        <!-- Close Button -->
+        <button onclick="document.getElementById('help-modal').remove()" style="width:100%; background:#4f46e5; border:none; color:#fff; padding:12px; border-radius:8px; font-weight:bold; cursor:pointer; font-size:14px; margin-top:20px;">Got It</button>
+      </div>
+    </div>
+  `;
+
+    // Remove existing modal if already open
+    const existing = document.getElementById('help-modal');
+    if (existing) existing.remove();
+
+    // Inject modal into the DOM
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+// Hook up sidebar drawer listener
+const helpSupportBtn = document.getElementById('drawer-help-support-btn');
+if (helpSupportBtn) {
+    helpSupportBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (typeof closeDrawer === 'function') closeDrawer();
+        showHelpSupportModal();
+    });
+}

@@ -42,6 +42,7 @@
         <button id="font-decrease" class="btn-sm">A-</button>
         <span id="font-size-label">18px</span>
         <button id="font-increase" class="btn-sm">A+</button>
+        <button id="reader-bookmark-btn" class="icon-btn" title="Bookmark this story">🔖 Bookmark</button>
       </div>
     </div>
 
@@ -111,29 +112,28 @@
       <hr class="drawer-divider" />
 
       <nav class="drawer-menu">
-        <a href="#" class="drawer-item">📖 My Reading List</a>
-        <a href="#" class="drawer-item">⚙️ Reader Preferences</a>
-        <a href="#" class="drawer-item">🌙 Dark Mode Toggle</a>
-        <a href="#" class="drawer-item">❓ Help & Support</a>
-        <a href="#" id="pwa-install-btn" class="drawer-item" style="display: none;">
-          📲 Install GleanWord App
-        </a>
+        <a href="#" id="drawer-reading-list-btn" class="drawer-item">📖 My Reading List</a>
+        <a href="#" id="drawer-reader-preferences-btn" class="drawer-item">⚙️ Reader Preferences</a>
+        <a href="#" id="drawer-theme-toggle" class="drawer-item">🌙 Dark Mode Toggle</a>
+        <a href="#" id="drawer-help-support-btn" class="drawer-item">❓ Help & Support</a>
+        <a href="#" id="pwa-install-btn" class="drawer-item" style="display: none;">📲 Install GleanWord App</a>
       </nav>
     </div>
   </aside>
 
-<!-- Email Input Modal -->
-<div id="emailModal" class="otp-modal" style="display: none;">
+  <!-- Email Input Modal -->
+  <div id="emailModal" class="otp-modal" style="display: none;">
     <div class="otp-modal-content">
-        <h3 id="emailModalTitle">Sign In</h3>
-        <p id="emailModalDesc">Enter your email address:</p>
-        <input type="email" id="emailModalInput" placeholder="reader@example.com" style="width: 100%; padding: 12px; font-size: 1rem; border: 2px solid #e2e8f0; border-radius: 8px; margin-bottom: 20px; outline: none;" />
-        <div class="otp-modal-actions">
-            <button id="cancelEmailBtn" class="btn-secondary">Cancel</button>
-            <button id="submitEmailBtn" class="btn-primary">Continue</button>
-        </div>
+      <h3 id="emailModalTitle">Sign In</h3>
+      <p id="emailModalDesc">Enter your email address:</p>
+      <input type="email" id="emailModalInput" placeholder="reader@example.com"
+        style="width: 100%; padding: 12px; font-size: 1rem; border: 2px solid #e2e8f0; border-radius: 8px; margin-bottom: 20px; outline: none;" />
+      <div class="otp-modal-actions">
+        <button id="cancelEmailBtn" class="btn-secondary">Cancel</button>
+        <button id="submitEmailBtn" class="btn-primary">Continue</button>
+      </div>
     </div>
-</div>
+  </div>
 
   <!-- OTP Verification Modal -->
   <div id="otpModal" class="otp-modal" style="display: none;">
