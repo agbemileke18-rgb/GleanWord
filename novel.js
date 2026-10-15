@@ -60,7 +60,6 @@ function renderBooksGrid(works) {
         const placeholderImg = '/path/to/your/default-placeholder.png';
         const imageSource = work.cover_url || placeholderImg;
 
-        // Build the inner HTML with cover image and a floating bookmark button
         card.innerHTML = `
       <div style="position: relative; width: 100%; height: 100%;">
         <img src="${imageSource}" alt="${escapeHtml(work.title)}" class="book-cover" style="width:100%; display:block;" />
@@ -86,7 +85,7 @@ let currentChapterIndex = 0;
 let currentWorkChapters = [];
 
 async function openReaderForWork(work) {
-    window.currentWork = work; // <-- ADD THIS LINE HERE!
+    window.currentWork = work;
 
     catalogView.classList.add('hidden');
     readerView.classList.remove('hidden');
@@ -137,14 +136,12 @@ function renderCurrentChapter() {
     // 2. SAFELY DETERMINE CATEGORY & UNIT LABELS
     let workCategory = '';
 
-    // Check global work object or chapter object
     if (window.currentWork && window.currentWork.category) {
         workCategory = window.currentWork.category;
     } else if (chapter && (chapter.category || chapter.work_category)) {
         workCategory = chapter.category || chapter.work_category;
     }
 
-    // Safety net: Force 'poetry' if category is missing from payload or matches album
     if (!workCategory) {
         const pageHeading = document.getElementById('reader-chapter-title')?.textContent || document.querySelector('h1')?.textContent || '';
         if (pageHeading.toLowerCase().includes('melancholia') || pageHeading.toLowerCase().includes('archer')) {
@@ -155,13 +152,11 @@ function renderCurrentChapter() {
     const unitLabel = getUnitLabel(workCategory);
     const pluralLabel = getUnitLabel(workCategory, true);
 
-    // 3. LOCAL STORAGE & STATE
     if (chapter && chapter.work_id) {
         localStorage.setItem('lastReadWork', chapter.work_id);
         localStorage.setItem('lastReadChapterIndex', currentChapterIndex);
     }
 
-    // 4. HEADER TITLE ELEMENT
     const chapterTitleEl = document.getElementById('reader-chapter-title');
     if (chapterTitleEl && chapter) {
         if (chapter.chapter_number === 0 || (chapter.title && chapter.title.toUpperCase() === 'PROLOGUE')) {
@@ -172,7 +167,6 @@ function renderCurrentChapter() {
         }
     }
 
-    // 5. BOOKMARK LISTENER (chapter & chapterTitleEl are both safely defined now)
     const readerBookmarkBtn = document.getElementById('reader-bookmark-btn');
     if (readerBookmarkBtn && chapter) {
         readerBookmarkBtn.onclick = () => {
@@ -229,14 +223,12 @@ function renderCurrentChapter() {
         readerBody.style.scrollBehavior = '';
     });
 
-    // Update Prev / Next button visibility
     const prevBtn = document.getElementById('prev-chapter-btn');
     const nextBtn = document.getElementById('next-chapter-btn');
     if (prevBtn) prevBtn.style.display = currentChapterIndex > 0 ? 'inline-block' : 'none';
     if (nextBtn) nextBtn.style.display = currentChapterIndex < currentWorkChapters.length - 1 ? 'inline-block' : 'none';
 }
 
-// Next Chapter Button
 document.getElementById('next-chapter-btn')?.addEventListener('click', () => {
     if (typeof currentChapterIndex !== 'undefined' && currentChapterIndex < currentWorkChapters.length - 1) {
         currentChapterIndex++;
@@ -244,7 +236,6 @@ document.getElementById('next-chapter-btn')?.addEventListener('click', () => {
     }
 });
 
-// Function to handle moving to the previous chapter cleanly without dizzying animation
 function goToPreviousChapter() {
     const readerBody = document.getElementById('reader-body');
     if (!readerBody) return;
@@ -265,7 +256,6 @@ function goToPreviousChapter() {
     }
 }
 
-// Previous Chapter Button Listener
 document.getElementById('prev-chapter-btn')?.addEventListener('click', () => {
     goToPreviousChapter();
 });
@@ -305,14 +295,11 @@ themeToggleBtn.addEventListener('click', () => {
     }
 });
 
-// Connect the sidebar drawer dark mode link to your existing toggle logic
 const drawerThemeBtn = document.getElementById('drawer-theme-toggle');
 if (drawerThemeBtn) {
     drawerThemeBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        // Trigger your main toggle button's click event automatically!
         themeToggleBtn.click();
-        // Close the sidebar drawer after clicking
         if (typeof closeDrawer === 'function') closeDrawer();
     });
 }
@@ -371,9 +358,6 @@ if (lastReadWork !== null && lastReadChapter !== null) {
     catalogView.prepend(resumeBanner);
 }
 
-// --- PAGE NAVIGATION BUTTONS ---
-
-// Next Page / Next Chapter Button
 document.getElementById('page-right-btn')?.addEventListener('click', () => {
     const readerBody = document.getElementById('reader-body');
     if (!readerBody) return;
@@ -387,7 +371,6 @@ document.getElementById('page-right-btn')?.addEventListener('click', () => {
     }
 });
 
-// Previous Page / Previous Chapter Button
 document.getElementById('page-left-btn')?.addEventListener('click', () => {
     const readerBody = document.getElementById('reader-body');
     if (!readerBody) return;
@@ -441,7 +424,6 @@ function handleSwipeGesture() {
                 readerBody.scrollBy({ left: readerBody.clientWidth + 40, behavior: 'smooth' });
             }
         } else if (swipeDistanceX > 0) {
-            // Swipe Right -> Previous Page OR Previous Chapter if on first page
             if (currentScroll <= 30) {
                 if (typeof currentChapterIndex !== 'undefined' && currentChapterIndex > 0) {
                     currentChapterIndex--;
@@ -473,7 +455,6 @@ function showPaymentSuccessModal() {
   `;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-    // Hook directly into your existing sign-in flow
     document.getElementById('modal-signin-btn').onclick = function () {
         document.getElementById('payment-success-modal').remove();
         if (typeof closeDrawer === 'function') closeDrawer();
@@ -576,18 +557,15 @@ async function openWorkOrChapter(work) {
         return;
     }
 
-    // Otherwise, proceed to reader
     loadReaderView(work);
 }
 
-// Function to display the lock modal
 function showPaywallModal(bookTitle) {
     const modal = document.getElementById('paywall-modal');
     document.getElementById('paywall-book-title').innerText = bookTitle;
     modal.classList.add('active'); // or modal.style.display = 'flex';
 }
 
-// Function to display the paywall lock modal
 function showPaywallModal(bookTitle) {
     const modal = document.getElementById('paywall-modal');
     if (modal) {
@@ -615,7 +593,6 @@ document.getElementById('modal-pay-btn')?.addEventListener('click', () => {
     }
 });
 
-// Register Service Worker for PWA offline support
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
@@ -672,12 +649,10 @@ document.addEventListener('touchend', (e) => {
     }
 }, { passive: true });
 
-// Dynamic Subscription & User Email UI Updates
 async function updateDrawerSubscriptionState() {
     const subBtn = document.getElementById('sidebar-subscribe-btn');
     const emailDisplay = document.getElementById('user-email-display');
 
-    // 1. Fetch current active session directly from Supabase
     const { data: { session } } = await supabaseClient.auth.getSession();
 
     let isSubscribed = false;
@@ -686,7 +661,6 @@ async function updateDrawerSubscriptionState() {
     if (session?.user) {
         userEmail = session.user.email;
 
-        // 2. Query database profile for subscription flag
         const { data: profile } = await supabaseClient
             .from('profiles')
             .select('is_subscribed')
@@ -695,12 +669,10 @@ async function updateDrawerSubscriptionState() {
 
         isSubscribed = profile?.is_subscribed || false;
 
-        // Optional: Sync localStorage for offline access
         localStorage.setItem('userEmail', userEmail);
         localStorage.setItem('isSubscribed', isSubscribed ? 'true' : 'false');
     }
 
-    // 3. Update Drawer UI based on verified status
     if (isSubscribed) {
         if (emailDisplay) {
             emailDisplay.textContent = userEmail;
@@ -759,7 +731,6 @@ function renderSignOutButton(isSignedIn) {
     }
 }
 
-// 1. SIGN OUT
 async function handleSignOut() {
     if (confirm("Are you sure you want to sign out?")) {
         await supabaseClient.auth.signOut();
@@ -770,20 +741,17 @@ async function handleSignOut() {
 }
 
 async function promptSubscriberSignIn() {
-    // Show clean email input modal instead of browser prompt
     showEmailModal("Sign In", "Enter your email address to receive a 6-digit access code:", async (email) => {
         if (email && email.includes('@')) {
             const cleanEmail = email.trim().toLowerCase();
             currentPendingEmail = cleanEmail; // <--- THIS WAS MISSING!
 
-            // Request 6-digit OTP code from Supabase
             const { error } = await supabaseClient.auth.signInWithOtp({
                 email: cleanEmail,
-                options: { shouldCreateUser: false } // False because they are returning subscribers
+                options: { shouldCreateUser: false }
             });
 
             if (!error) {
-                // Open your custom 6-digit OTP modal
                 showOtpModal(cleanEmail);
             } else {
                 alert("Error sending code: " + (error.message || "Please check the email address and try again."));
@@ -795,7 +763,6 @@ async function promptSubscriberSignIn() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // 2. Automatically update UI on auth changes (magic links, logins)
     supabaseClient.auth.onAuthStateChange(async (event, session) => {
         if (session) {
             if (typeof updateDrawerSubscriptionState === 'function') {
@@ -807,7 +774,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // 3. Initial UI drawer check
     if (typeof updateDrawerSubscriptionState === 'function') {
         updateDrawerSubscriptionState();
     }
@@ -898,7 +864,6 @@ function hideOtpModal() {
     if (modal) modal.style.display = 'none';
 }
 
-// 3. Bind Modal Buttons (Runs when page loads)
 document.addEventListener('DOMContentLoaded', () => {
     const submitBtn = document.getElementById('submitOtpBtn');
     const cancelBtn = document.getElementById('cancelOtpBtn');
@@ -989,7 +954,6 @@ async function verifyOtpCode(userEmail, token) {
 
             hideOtpModal();
 
-            // Refresh UI and chapter content instantly
             if (typeof updateDrawerSubscriptionState === 'function') await updateDrawerSubscriptionState();
             if (typeof renderCurrentChapter === 'function' && window.currentChapter) renderCurrentChapter();
             return true;
@@ -998,7 +962,6 @@ async function verifyOtpCode(userEmail, token) {
     } catch (err) {
         console.error("OTP verification error:", err);
 
-        // Fail-safe session check
         const { data: finalCheck } = await supabaseClient.auth.getSession();
         if (finalCheck?.session?.user) {
             hideOtpModal();
@@ -1063,7 +1026,6 @@ installBtn?.addEventListener('click', async (e) => {
 });
 
 function showReadingListModal() {
-    // Retrieve saved books from localStorage (or fallback to empty array)
     const savedList = JSON.parse(localStorage.getItem('gleanword_reading_list') || '[]');
 
     let listContentHtml = '';
@@ -1163,8 +1125,6 @@ if (readingListBtn) {
     });
 }
 
-// Function to toggle a book in the reading list
-// Function to save or update a book in the reading list
 function toggleBookmark(workId, title, category, chapterIndex = 0) {
     let savedList = JSON.parse(localStorage.getItem('gleanword_reading_list') || '[]');
 

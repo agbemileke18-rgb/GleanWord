@@ -54,8 +54,8 @@
     </div>
 
     <div class="chapter-nav" style="margin: 15px 0;">
-      <button id="prev-chapter-btn" class="btn-secondary">← Previous Chapter</button>
-      <button id="next-chapter-btn" class="btn-secondary">Next Chapter →</button>
+      <button id="prev-chapter-btn" class="btn-secondary">← Previous Chapter/Track</button>
+      <button id="next-chapter-btn" class="btn-secondary">Next Chapter/Track →</button>
     </div>
 
     <article class="reader-body" id="reader-body">
@@ -64,7 +64,6 @@
         listen.</p>
     </article>
 
-    <!-- Page Flipping Navigation -->
     <div class="page-nav" style="display: flex; justify-content: space-between; margin-top: 15px; margin-bottom: 25px;">
       <button id="page-left-btn" class="btn-secondary">&larr; Page Left</button>
       <button id="page-right-btn" class="btn-secondary">Page Right &rarr;</button>
@@ -79,9 +78,6 @@
     </div>
   </main>
 
-  <!-- ... preceding content (<main id="reader-view">) ... -->
-
-  <!-- Paywall Modal Structure -->
   <div id="paywall-modal" class="modal-overlay hidden">
     <div class="modal-card">
       <h2>Unlock Unfinished Works</h2>
@@ -93,10 +89,8 @@
     </div>
   </div>
 
-  <!-- Backdrop Overlay for Drawer -->
   <div id="sidebar-overlay" class="sidebar-overlay"></div>
 
-  <!-- Left Side Profile Drawer -->
   <aside id="sidebar-drawer" class="sidebar-drawer">
     <div class="drawer-header">
       <div id="user-email-display" class="user-email-display">Welcome, Reader!</div>
@@ -105,7 +99,6 @@
 
     <div class="drawer-content">
       <div id="drawer-sub-container" class="drawer-sub-container">
-        <!-- Line 107 in index.html -->
         <button id="sidebar-subscribe-btn" class="drawer-sub-btn subscribe-btn">Subscribe for ₦1,000/month</button>
       </div>
 
@@ -121,7 +114,6 @@
     </div>
   </aside>
 
-  <!-- Email Input Modal -->
   <div id="emailModal" class="otp-modal" style="display: none;">
     <div class="otp-modal-content">
       <h3 id="emailModalTitle">Sign In</h3>
@@ -135,7 +127,6 @@
     </div>
   </div>
 
-  <!-- OTP Verification Modal -->
   <div id="otpModal" class="otp-modal" style="display: none;">
     <div class="otp-modal-content">
       <h3>Enter Access Code</h3>
