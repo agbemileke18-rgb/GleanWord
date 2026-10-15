@@ -86,6 +86,8 @@ let currentChapterIndex = 0;
 let currentWorkChapters = [];
 
 async function openReaderForWork(work) {
+    window.currentWork = work; // <-- ADD THIS LINE HERE!
+
     catalogView.classList.add('hidden');
     readerView.classList.remove('hidden');
     window.scrollTo(0, 0);
@@ -114,7 +116,17 @@ async function openReaderForWork(work) {
     renderCurrentChapter();
 }
 
+// Helper to get the correct unit label (Track vs Chapter) based on category
+function getUnitLabel(workCategory, isPlural = false) {
+    const isPoetry = workCategory && workCategory.toLowerCase() === 'poetry';
+    if (isPlural) {
+        return isPoetry ? 'Tracks' : 'Chapters';
+    }
+    return isPoetry ? 'Track' : 'Chapter';
+}
+
 function renderCurrentChapter() {
+    // 1. DECLARE CHAPTER FIRST
     const chapter = currentWorkChapters[currentChapterIndex];
     const readerBody = document.getElementById('reader-body');
     if (!readerBody) return;
@@ -122,14 +134,45 @@ function renderCurrentChapter() {
     readerBody.style.scrollBehavior = 'auto';
     const paywallBanner = document.getElementById('paywallBanner');
 
-    // const isSubscribed = (typeof currentUserProfile !== 'undefined' && currentUserProfile?.is_subscribed) || localStorage.getItem('isSubscribed') === 'true';
+    // 2. SAFELY DETERMINE CATEGORY & UNIT LABELS
+    let workCategory = '';
 
+    // Check global work object or chapter object
+    if (window.currentWork && window.currentWork.category) {
+        workCategory = window.currentWork.category;
+    } else if (chapter && (chapter.category || chapter.work_category)) {
+        workCategory = chapter.category || chapter.work_category;
+    }
+
+    // Safety net: Force 'poetry' if category is missing from payload or matches album
+    if (!workCategory) {
+        const pageHeading = document.getElementById('reader-chapter-title')?.textContent || document.querySelector('h1')?.textContent || '';
+        if (pageHeading.toLowerCase().includes('melancholia') || pageHeading.toLowerCase().includes('archer')) {
+            workCategory = 'poetry';
+        }
+    }
+
+    const unitLabel = getUnitLabel(workCategory);
+    const pluralLabel = getUnitLabel(workCategory, true);
+
+    // 3. LOCAL STORAGE & STATE
     if (chapter && chapter.work_id) {
         localStorage.setItem('lastReadWork', chapter.work_id);
         localStorage.setItem('lastReadChapterIndex', currentChapterIndex);
     }
 
-    // Bookmark listener inside reader toolbar
+    // 4. HEADER TITLE ELEMENT
+    const chapterTitleEl = document.getElementById('reader-chapter-title');
+    if (chapterTitleEl && chapter) {
+        if (chapter.chapter_number === 0 || (chapter.title && chapter.title.toUpperCase() === 'PROLOGUE')) {
+            chapterTitleEl.textContent = chapter.title || 'PROLOGUE';
+        } else {
+            const chapterName = chapter.title ? `: ${chapter.title}` : '';
+            chapterTitleEl.textContent = `${unitLabel} ${chapter.chapter_number}${chapterName}`;
+        }
+    }
+
+    // 5. BOOKMARK LISTENER (chapter & chapterTitleEl are both safely defined now)
     const readerBookmarkBtn = document.getElementById('reader-bookmark-btn');
     if (readerBookmarkBtn && chapter) {
         readerBookmarkBtn.onclick = () => {
@@ -143,33 +186,22 @@ function renderCurrentChapter() {
         sectionElement.textContent = chapter?.section_title || '';
     }
 
-    const chapterTitleEl = document.getElementById('reader-chapter-title');
-    if (chapterTitleEl) {
-        if (chapter.chapter_number === 0 || (chapter.title && chapter.title.toUpperCase() === 'PROLOGUE')) {
-            chapterTitleEl.textContent = chapter.title || 'PROLOGUE';
-        } else {
-            const chapterName = chapter.title ? `: ${chapter.title}` : '';
-            chapterTitleEl.textContent = `Chapter ${chapter.chapter_number}${chapterName}`;
-        }
-    }
-
     // Access check: Rely directly on Supabase RLS
     if (chapter && chapter.content) {
         const rawContent = chapter.content;
 
         let contentHTML = `
-      <div class="chapter-marker chapter-start">Chapter Begins</div>
+      <div class="chapter-marker chapter-start">${unitLabel} Begins</div>
       ${rawContent}
-      <div class="chapter-marker chapter-end">Chapter Ends</div>
-    `;
+      <div class="chapter-marker chapter-end">${unitLabel} Ends</div>    `;
 
         if (currentChapterIndex === currentWorkChapters.length - 1) {
             contentHTML += `
         <div class="chapter-end-card">
           <span class="end-icon">📖</span>
           <h3>You're All Caught Up!</h3>
-          <p>You’ve reached the end of the currently uploaded chapters for this work.</p>
-          <div class="schedule-badge">🗓️ New Chapters Drop Every Saturday</div>
+        <p>You've reached the end of the currently uploaded ${pluralLabel.toLowerCase()} for this work.</p>
+         <div class="schedule-badge">📅 New ${pluralLabel} Drop Every Saturday</div>
         </div>
       `;
         }
@@ -181,8 +213,8 @@ function renderCurrentChapter() {
 
         readerBody.innerHTML = `
       <div class="locked-chapter-banner" style="text-align: center; padding: 3rem 1rem;">
-        <p style="font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem;">👑 Premium Chapter</p>
-        <p style="margin-bottom: 1.5rem; color: #ccc;">Unlock this chapter and unlimited access across GleanWord.</p>
+        <p style="font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem;">👑 Premium ${unitLabel}</p>
+        <p style="margin-bottom: 1.5rem; color: #ccc;">Unlock this ${unitLabel.toLowerCase()} and unlimited access across GleanWord.</p>
         <button id="reader-subscribe-btn" style="padding: 16px 36px; font-size: 1.15rem; background: #d4af37; color: #000; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
           Subscribe for ₦1,000
         </button>
@@ -192,7 +224,6 @@ function renderCurrentChapter() {
 
     applyReaderPreferences();
 
-    // Reset scroll position cleanly
     readerBody.scrollLeft = 0;
     requestAnimationFrame(() => {
         readerBody.style.scrollBehavior = '';
@@ -878,7 +909,6 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const code = input ? input.value.trim() : '';
 
-            // Fallback: If currentPendingEmail is somehow blank, try reading from DOM or localStorage
             const emailToUse = currentPendingEmail ||
                 (document.getElementById('otpEmailDisplay')?.textContent || '').trim() ||
                 localStorage.getItem('pending_subscription_email');
@@ -1032,7 +1062,6 @@ installBtn?.addEventListener('click', async (e) => {
     installBtn.style.display = 'none';
 });
 
-// Function to show Reading List Modal
 function showReadingListModal() {
     // Retrieve saved books from localStorage (or fallback to empty array)
     const savedList = JSON.parse(localStorage.getItem('gleanword_reading_list') || '[]');

@@ -1,10 +1,10 @@
-const CACHE_NAME = 'gleanword-v19';
+const CACHE_NAME = 'gleanword-v20';
 const ASSETS_TO_CACHE = [
     '/',
     '/index.html',
     '/404.html',
-    '/novel.css?v=19',
-    '/novel.js?v=19',
+    '/novel.css?v=20',
+    '/novel.js?v=20',
     '/manifest.json',
     '/novel-192.png',
     '/novel-512.png'
