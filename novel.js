@@ -180,7 +180,7 @@ function renderCurrentChapter() {
         sectionElement.textContent = chapter?.section_title || '';
     }
 
-   // Access check: Rely directly on Supabase RLS
+    // Access check: Rely directly on Supabase RLS
     if (chapter && chapter.content) {
         const rawContent = chapter.content;
 
@@ -216,6 +216,11 @@ function renderCurrentChapter() {
         }
 
         readerBody.innerHTML = contentHTML;
+
+        if (workCategory && workCategory.toLowerCase() === 'grammar') {
+            appendGlossingWorkshopToReader();
+        }
+
     } else {
         // Hide external paywall banner so only one banner renders
         if (paywallBanner) paywallBanner.classList.add('hidden');
@@ -256,6 +261,162 @@ function renderCurrentChapter() {
     if (prevBtn) prevBtn.style.display = currentChapterIndex > 0 ? 'inline-block' : 'none';
     if (nextBtn) nextBtn.style.display = currentChapterIndex < currentWorkChapters.length - 1 ? 'inline-block' : 'none';
 }
+
+// Data dictionary for Leipzig Glossing Rules & Local Extensions
+const LEIPZIG_TAGS = {
+    "1SG": "First-Person Singular",
+    "2SG": "Second-Person Singular",
+    "3SG": "Third-Person Singular",
+    "1PL": "First-Person Plural",
+    "2PL": "Second-Person Plural",
+    "3PL": "Third-Person Plural",
+    "N": "Noun",
+    "V": "Verb",
+    "ADJ": "Adjective",
+    "ADV": "Adverb",
+    "DET": "Determiner",
+    "DEM": "Demonstrative",
+    "PRS": "Present Tense",
+    "PST": "Past Tense",
+    "FUT": "Future Tense",
+    "PROG": "Progressive Aspect",
+    "PRF": "Perfective Aspect",
+    "HAB": "Habitual Aspect",
+    "NEG": "Negative Marker",
+    "FOC": "Focus Marker (e.g., 'ni')",
+    "PL": "Plural Inflection",
+    "RED": "Reduplication",
+    "PASS": "Passive Voice",
+    "CAUS": "Causative Affix",
+    "COP": "Copula Verb (e.g., 'ni' / 'jẹ')",
+    "DEF": "Definite Marker (e.g., 'náà')",
+    "GEN": "Genitive / Associative Marker (e.g., 'ti')"
+};
+
+// Function to append the Interactive Glossing Workshop into the Academic Reader
+function appendGlossingWorkshopToReader() {
+    const readerBody = document.getElementById('reader-body');
+    if (!readerBody) return;
+
+    // Remove existing workshop container if present to avoid duplication
+    const existing = readerBody.querySelector('.glossing-workshop-container');
+    if (existing) existing.remove();
+
+    const workshopDiv = document.createElement('div');
+    workshopDiv.className = 'glossing-workshop-container';
+    workshopDiv.style.cssText = 'background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 2rem; margin-top: 3rem; color: #f8fafc;';
+
+    workshopDiv.innerHTML = `
+        <h3 style="color: #38bdf8; margin-bottom: 0.5rem; font-size: 1.2rem;">🔬 Interactive Leipzig Glossing Workshop</h3>
+        <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">Practice breaking down your source text into standard interlinear glossed tiers for your project chapter.</p>
+        
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; font-size: 0.85rem; font-weight: bold; margin-bottom: 0.5rem; color: #cbd5e1;">Source Language Sentence</label>
+            <input type="text" id="workshopSourceInput" placeholder="e.g., Ọmọ náà ni-ó ra aṣọ" style="width: 100%; padding: 10px; background: #1e293b; border: 1px solid #475569; color: #fff; border-radius: 6px;" />
+        </div>
+
+        <button id="workshopGenerateBtn" style="background: #38bdf8; color: #0f172a; font-weight: bold; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; margin-bottom: 1.5rem;">
+            Generate Morpheme Breakdown
+        </button>
+
+        <div id="workshopOutputArea" style="display: none;">
+            <div style="background: #1e293b; padding: 1.25rem; border-radius: 8px; border: 1px solid #475569;">
+                <p style="font-size: 0.8rem; color: #38bdf8; font-weight: bold; margin-bottom: 0.5rem;">TIER 2 & 3 ALIGNMENT:</p>
+                <div id="workshopBlocksGrid" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 1rem;"></div>
+                
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: bold; margin-bottom: 0.5rem; color: #cbd5e1;">Free English Translation</label>
+                    <input type="text" id="workshopTranslationInput" placeholder="e.g., It is the child that bought clothes." style="width: 100%; padding: 8px; background: #0f172a; border: 1px solid #475569; color: #fff; border-radius: 6px;" />
+                </div>
+            </div>
+
+            <button id="workshopExportBtn" style="background: #22c55e; color: #fff; font-weight: bold; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; margin-top: 1rem;">
+                Copy Formatted Text for Manuscript
+            </button>
+        </div>
+    `;
+
+    readerBody.appendChild(workshopDiv);
+
+    // Event handler to dynamically build dropdowns from LEIPZIG_TAGS
+    document.getElementById('workshopGenerateBtn').addEventListener('click', () => {
+        const sentence = document.getElementById('workshopSourceInput').value.trim();
+        if (!sentence) return;
+
+        const words = sentence.split(/\s+/);
+        const grid = document.getElementById('workshopBlocksGrid');
+        grid.innerHTML = '';
+
+        let optionsHtml = '<option value="">Select Tag...</option>';
+        for (const [tag, description] of Object.entries(LEIPZIG_TAGS)) {
+            optionsHtml += `<option value="${tag}">${tag} (${description})</option>`;
+        }
+
+        words.forEach((word, index) => {
+            grid.innerHTML += `
+                <div style="background: #0f172a; padding: 8px; border-radius: 6px; border: 1px solid #334155; min-width: 100px; text-align: center;">
+                    <div style="font-size: 0.9rem; font-weight: bold; color: #f8fafc; margin-bottom: 4px;">${word}</div>
+                    <select class="leipzig-select" data-index="${index}" style="width: 100%; background: #1e293b; color: #38bdf8; border: 1px solid #475569; border-radius: 4px; padding: 4px; font-size: 0.75rem;">
+                        ${optionsHtml}
+                    </select>
+                </div>
+            `;
+        });
+
+        document.getElementById('workshopOutputArea').style.display = 'block';
+    }); // <--- Line 355 in your image
+
+    // ==========================================
+    // PASTE HERE: Export to Clipboard Handler
+    // ==========================================
+    const exportBtn = document.getElementById('workshopExportBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            const sourceSentence = document.getElementById('workshopSourceInput').value.trim();
+            const translation = document.getElementById('workshopTranslationInput').value.trim();
+
+            const selects = document.querySelectorAll('.leipzig-select');
+            const gridBlocks = document.querySelectorAll('#workshopBlocksGrid > div');
+
+            if (!sourceSentence) return;
+
+            // Build Tier 1 (Words) and Tier 2 (Glosses) aligned with tabs
+            let tier1Words = [];
+            let tier2Glosses = [];
+
+            gridBlocks.forEach((block, index) => {
+                const word = block.querySelector('div').textContent;
+                const select = selects[index];
+                const tag = select ? select.value : '';
+
+                tier1Words.push(word);
+                tier2Glosses.push(tag || '---');
+            });
+
+            // Format as standard academic 3-tier Interlinear Glossed Text (IGT)
+            const formattedOutput =
+                `${tier1Words.join('\t')}
+${tier2Glosses.join('\t')}
+'${translation || 'No translation provided'}'`;
+
+            // Copy to system clipboard
+            navigator.clipboard.writeText(formattedOutput).then(() => {
+                const originalText = exportBtn.textContent;
+
+                exportBtn.textContent = '✓ Copied to Clipboard!';
+                exportBtn.style.background = '#16a34a';
+
+                setTimeout(() => {
+                    exportBtn.textContent = originalText;
+                    exportBtn.style.background = '#22c55e';
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                alert('Could not copy to clipboard automatically.');
+            });
+        });
+    }
+} // <--- Closing brace for appendGlossingWorkshopToReader()
 
 document.getElementById('next-chapter-btn')?.addEventListener('click', () => {
     if (typeof currentChapterIndex !== 'undefined' && currentChapterIndex < currentWorkChapters.length - 1) {
@@ -504,7 +665,7 @@ function payWithPaystack(userEmail) {
         const handler = PaystackPop.setup({
             key: 'pk_live_d7daec8fa68494d3a0f624f8a1d61f9b3695b76b',
             email: userEmail,
-            amount: 1000 * 100, 
+            amount: 1000 * 100,
             currency: 'NGN',
             plan: 'PLN_ztae9rndjeto3kr',
             ref: 'sub_' + Math.floor((Math.random() * 1000000000) + 1),
@@ -586,7 +747,7 @@ async function openWorkOrChapter(work) {
 function showPaywallModal(bookTitle) {
     const modal = document.getElementById('paywall-modal');
     document.getElementById('paywall-book-title').innerText = bookTitle;
-    modal.classList.add('active'); 
+    modal.classList.add('active');
 }
 
 function showPaywallModal(bookTitle) {
@@ -1115,7 +1276,7 @@ function removeReadingListItem(index) {
     let savedList = JSON.parse(localStorage.getItem('gleanword_reading_list') || '[]');
     savedList.splice(index, 1);
     localStorage.setItem('gleanword_reading_list', JSON.stringify(savedList));
-    showReadingListModal(); 
+    showReadingListModal();
 }
 
 const readingListBtn = document.getElementById('drawer-reading-list-btn');
@@ -1406,7 +1567,7 @@ function openResearchReader(guide) {
     if (payBtn) {
         payBtn.addEventListener('click', () => {
             // Call your existing Paystack initialization function here
-            initializePaystackPayment(); 
+            initializePaystackPayment();
         });
     }
 }
