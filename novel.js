@@ -180,24 +180,39 @@ function renderCurrentChapter() {
         sectionElement.textContent = chapter?.section_title || '';
     }
 
-    // Access check: Rely directly on Supabase RLS
+   // Access check: Rely directly on Supabase RLS
     if (chapter && chapter.content) {
         const rawContent = chapter.content;
 
-        let contentHTML = `
-      <div class="chapter-marker chapter-start">${unitLabel} Begins</div>
-      ${rawContent}
-      <div class="chapter-marker chapter-end">${unitLabel} Ends</div>    `;
+        let contentHTML = '';
+
+        // Check if current item is an academic/grammar guide
+        if (workCategory && workCategory.toLowerCase() === 'grammar') {
+            contentHTML = `
+                <div class="academic-reader-header" style="text-align: center; margin-bottom: 2rem;">
+                    <span class="badge-academic" style="background: #1e293b; color: #38bdf8; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; letter-spacing: 1px;">A GRAMMAR BOOK</span>
+                    <div class="topic-tag" style="margin-top: 10px; color: #38bdf8; font-weight: 600;">Target Topic: ${window.currentWork?.description || 'Linguistic Analysis'}</div>
+                </div>
+                <div class="academic-body">${rawContent}</div>
+            `;
+        } else {
+            // Standard Novel / Poetry formatting
+            contentHTML = `
+                <div class="chapter-marker chapter-start">${unitLabel} Begins</div>
+                ${rawContent}
+                <div class="chapter-marker chapter-end">${unitLabel} Ends</div>
+            `;
+        }
 
         if (currentChapterIndex === currentWorkChapters.length - 1) {
             contentHTML += `
-        <div class="chapter-end-card">
-          <span class="end-icon">📖</span>
-          <h3>You're All Caught Up!</h3>
-        <p>You've reached the end of the currently uploaded ${pluralLabel.toLowerCase()} for this work.</p>
-         <div class="schedule-badge">📅 New ${pluralLabel} Drop Every Saturday</div>
-        </div>
-      `;
+                <div class="chapter-end-card">
+                    <span class="end-icon">🔚</span>
+                    <h3>You're All Caught Up!</h3>
+                    <p>You've reached the end of the currently uploaded ${pluralLabel.toLowerCase()}.</p>
+                    <div class="schedule-badge">🗓️ New ${pluralLabel} Drop Every Saturday</div>
+                </div>
+            `;
         }
 
         readerBody.innerHTML = contentHTML;
@@ -205,15 +220,28 @@ function renderCurrentChapter() {
         // Hide external paywall banner so only one banner renders
         if (paywallBanner) paywallBanner.classList.add('hidden');
 
-        readerBody.innerHTML = `
-      <div class="locked-chapter-banner" style="text-align: center; padding: 3rem 1rem;">
-        <p style="font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem;">👑 Premium ${unitLabel}</p>
-        <p style="margin-bottom: 1.5rem; color: #ccc;">Unlock this ${unitLabel.toLowerCase()} and unlimited access across GleanWord.</p>
-        <button id="reader-subscribe-btn" style="padding: 16px 36px; font-size: 1.15rem; background: #d4af37; color: #000; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
-          Subscribe for ₦1,000
-        </button>
-      </div>
-    `;
+        if (workCategory && workCategory.toLowerCase() === 'grammar') {
+            // Custom Paywall layout for Academic Guides
+            readerBody.innerHTML = `
+                <div class="research-paywall-card" style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); border: 1px solid #6366f1; border-radius: 12px; padding: 2.5rem 1.5rem; text-align: center; margin: 2rem 0;">
+                    <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔒</div>
+                    <h3 style="font-size: 1.4rem; color: #fff; margin-bottom: 0.5rem;">Unlock Methodology & Sample Analysis</h3>
+                    <p style="color: #cbd5e1; margin-bottom: 1.5rem; font-size: 0.95rem;">Subscribe to GleanWord for full access to step-by-step methodologies, syntactic derivation trees, and research models.</p>
+                    <button id="reader-subscribe-btn" style="background: #22c55e; color: #fff; padding: 14px 28px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; font-size: 1rem;">
+                        Subscribe for ₦1,000
+                    </button>
+                </div>
+            `;
+        } else {
+            // Standard Paywall for Novels / Poetry
+            readerBody.innerHTML = `
+                <div class="locked-chapter-banner" style="text-align: center; padding: 3rem 1rem;">
+                    <p style="font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem;">🔒 Unlock this ${unitLabel.toLowerCase()}</p>
+                    <p style="margin-bottom: 1.5rem; color: #ccc;">Unlock this ${unitLabel.toLowerCase()} and all other works on GleanWord.</p>
+                    <button id="reader-subscribe-btn" style="padding: 16px 36px; font-size: 1.15rem; font-weight: bold;">Subscribe for ₦1,000</button>
+                </div>
+            `;
+        }
     }
 
     applyReaderPreferences();
@@ -417,7 +445,6 @@ function handleSwipeGesture() {
         const currentScroll = readerBody.scrollLeft;
 
         if (swipeDistanceX < 0) {
-            // Swipe Left -> Next Page OR Next Chapter if on last page
             if (currentScroll >= maxScroll - 30) {
                 document.getElementById('next-chapter-btn')?.click();
             } else {
@@ -477,13 +504,12 @@ function payWithPaystack(userEmail) {
         const handler = PaystackPop.setup({
             key: 'pk_live_d7daec8fa68494d3a0f624f8a1d61f9b3695b76b',
             email: userEmail,
-            amount: 1000 * 100, // ₦1,000 in kobo
+            amount: 1000 * 100, 
             currency: 'NGN',
             plan: 'PLN_ztae9rndjeto3kr',
             ref: 'sub_' + Math.floor((Math.random() * 1000000000) + 1),
             callback: function (response) {
                 console.log('Payment complete! Reference:', response.reference);
-                // Display the sign-in guidance modal immediately
                 showPaymentSuccessModal();
             },
             onClose: function () {
@@ -538,7 +564,6 @@ async function initiateSubscription() {
 
 document.addEventListener('click', (e) => {
     const target = e.target;
-    // Match closest button or element with ID or Class
     const subBtn = target.closest('.subscribe-btn, #subscribe-btn, #sidebar-subscribe-btn, #reader-subscribe-btn, #modal-pay-btn');
 
     if (subBtn) {
@@ -548,10 +573,8 @@ document.addEventListener('click', (e) => {
 });
 
 async function openWorkOrChapter(work) {
-    // Check local user status or query Supabase profile
     const isSubscribed = currentUserProfile?.is_subscribed;
 
-    // If the work is unfinished and the user hasn't paid, open the modal
     if (work.status === 'unfinished' && !isSubscribed) {
         showPaywallModal(work.title);
         return;
@@ -563,7 +586,7 @@ async function openWorkOrChapter(work) {
 function showPaywallModal(bookTitle) {
     const modal = document.getElementById('paywall-modal');
     document.getElementById('paywall-book-title').innerText = bookTitle;
-    modal.classList.add('active'); // or modal.style.display = 'flex';
+    modal.classList.add('active'); 
 }
 
 function showPaywallModal(bookTitle) {
@@ -606,7 +629,6 @@ document.addEventListener('click', (e) => {
     if (target && (target.id === 'reader-subscribe-btn' || target.innerText?.includes('Subscribe'))) {
         e.preventDefault();
 
-        // Trigger the working red dashboard button's action
         const dashboardBtn = document.getElementById('subscribe-btn');
         if (dashboardBtn) {
             dashboardBtn.click();
@@ -636,7 +658,6 @@ menuToggleBtn?.addEventListener('click', openDrawer);
 closeDrawerBtn?.addEventListener('click', closeDrawer);
 sidebarOverlay?.addEventListener('click', closeDrawer);
 
-// Swipe Right from Left Edge (< 30px) to Open Drawer
 let edgeStartX = 0;
 document.addEventListener('touchstart', (e) => {
     edgeStartX = e.touches[0].clientX;
@@ -892,7 +913,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// 4. Verification Handler
 async function verifyOtpCode(userEmail, token) {
     const emailToVerify = (userEmail || currentPendingEmail || '').trim().toLowerCase();
     const cleanToken = (token || '').trim();
@@ -906,14 +926,12 @@ async function verifyOtpCode(userEmail, token) {
     if (submitBtn) submitBtn.disabled = true;
 
     try {
-        // 1. Attempt verification with type 'magiclink'
         let { data, error } = await supabaseClient.auth.verifyOtp({
             email: emailToVerify,
             token: cleanToken,
             type: 'magiclink'
         });
 
-        // 2. Fallback to 'signup' type for brand new accounts
         if (error) {
             const signupAttempt = await supabaseClient.auth.verifyOtp({
                 email: emailToVerify,
@@ -926,7 +944,6 @@ async function verifyOtpCode(userEmail, token) {
 
         if (error) throw error;
 
-        // 3. Retrieve authenticated user session
         const { data: sessionCheck } = await supabaseClient.auth.getSession();
         const activeUser = data?.user || sessionCheck?.session?.user;
 
@@ -934,7 +951,6 @@ async function verifyOtpCode(userEmail, token) {
             const rawPending = localStorage.getItem('pending_subscription_email');
             const pendingPaymentEmail = rawPending ? rawPending.trim().toLowerCase() : null;
 
-            // Upgrade user if they have a pending payment OR if pending email matches current session
             if (pendingPaymentEmail && (pendingPaymentEmail === emailToVerify || pendingPaymentEmail === activeUser.email?.toLowerCase())) {
                 const { error: updateError } = await supabaseClient
                     .from('profiles')
@@ -979,7 +995,6 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
     if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
         console.log('User signed in successfully:', session.user.email);
 
-        // 1. Refresh drawer header and button state
         if (typeof updateDrawerSubscriptionState === 'function') {
             await updateDrawerSubscriptionState();
         }
@@ -1002,11 +1017,8 @@ let deferredPrompt;
 const installBtn = document.getElementById('pwa-install-btn');
 
 window.addEventListener('beforeinstallprompt', (e) => {
-    // Prevent default mini-infobar from showing
     e.preventDefault();
-    // Save event so it can be triggered later
     deferredPrompt = e;
-    // Show the "Install App" button in the menu
     if (installBtn) installBtn.style.display = 'block';
 });
 
@@ -1014,7 +1026,6 @@ installBtn?.addEventListener('click', async (e) => {
     e.preventDefault();
     if (!deferredPrompt) return;
 
-    // Trigger the native install prompt
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
 
@@ -1067,22 +1078,17 @@ function showReadingListModal() {
     </div>
   `;
 
-    // Remove existing if open
     const existing = document.getElementById('reading-list-modal');
     if (existing) existing.remove();
 
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 
-// Helper to safely open a work from the reading list
-// Helper to safely open a work and target chapter from reading list
 async function openBookFromReadingList(workId, targetChapterIndex = 0) {
-    // 1. Close modal
     const modal = document.getElementById('reading-list-modal');
     if (modal) modal.remove();
 
     try {
-        // 2. Fetch full work details
         const { data: work, error } = await supabaseClient
             .from('works')
             .select('*')
@@ -1094,10 +1100,8 @@ async function openBookFromReadingList(workId, targetChapterIndex = 0) {
             return;
         }
 
-        // 3. Open work
         await openReaderForWork(work);
 
-        // 4. Force reader to jump to saved chapter index without resetting
         if (typeof currentWorkChapters !== 'undefined' && currentWorkChapters.length > targetChapterIndex) {
             currentChapterIndex = targetChapterIndex;
             renderCurrentChapter();
@@ -1107,15 +1111,13 @@ async function openBookFromReadingList(workId, targetChapterIndex = 0) {
     }
 }
 
-// Function to remove an item from list
 function removeReadingListItem(index) {
     let savedList = JSON.parse(localStorage.getItem('gleanword_reading_list') || '[]');
     savedList.splice(index, 1);
     localStorage.setItem('gleanword_reading_list', JSON.stringify(savedList));
-    showReadingListModal(); // Re-render modal
+    showReadingListModal(); 
 }
 
-// Hook up drawer button listener
 const readingListBtn = document.getElementById('drawer-reading-list-btn');
 if (readingListBtn) {
     readingListBtn.addEventListener('click', (e) => {
@@ -1132,7 +1134,6 @@ function toggleBookmark(workId, title, category, chapterIndex = 0) {
     const targetChapterIdx = typeof currentChapterIndex !== 'undefined' ? currentChapterIndex : chapterIndex;
 
     if (existingIndex > -1) {
-        // Book is already in the list: update it to the new chapter position instead of removing it
         savedList[existingIndex].chapterIndex = targetChapterIdx;
         savedList[existingIndex].title = title;
         savedList[existingIndex].addedAt = new Date().toISOString();
@@ -1152,7 +1153,6 @@ function toggleBookmark(workId, title, category, chapterIndex = 0) {
     localStorage.setItem('gleanword_reading_list', JSON.stringify(savedList));
 }
 
-// Default preferences state
 let currentFontFamily = localStorage.getItem('gleanword_font_family') || 'sans-serif';
 let currentLineHeight = localStorage.getItem('gleanword_line_height') || '1.6';
 
@@ -1165,7 +1165,6 @@ function applyReaderPreferences() {
     }
 }
 
-// Open Reader Preferences Modal
 function showReaderPreferencesModal() {
     const modalHtml = `
     <div id="preferences-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px;">
@@ -1210,19 +1209,16 @@ function showReaderPreferencesModal() {
     </div>
   `;
 
-    // Remove existing modal if present
     const existing = document.getElementById('preferences-modal');
     if (existing) existing.remove();
 
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-    // Hook up Font Size decrease button in modal
     document.getElementById('pref-font-dec').addEventListener('click', () => {
         if (fontDecreaseBtn) fontDecreaseBtn.click();
         document.getElementById('pref-font-size-label').textContent = `${currentFontSize}px`;
     });
 
-    // Hook up Font Size increase button in modal
     document.getElementById('pref-font-inc').addEventListener('click', () => {
         if (fontIncreaseBtn) fontIncreaseBtn.click();
         document.getElementById('pref-font-size-label').textContent = `${currentFontSize}px`;
@@ -1235,7 +1231,6 @@ function showReaderPreferencesModal() {
         applyReaderPreferences();
     });
 
-    // Hook up Line Height select
     document.getElementById('pref-line-height').addEventListener('change', (e) => {
         currentLineHeight = e.target.value;
         localStorage.setItem('gleanword_line_height', currentLineHeight);
@@ -1243,7 +1238,6 @@ function showReaderPreferencesModal() {
     });
 }
 
-// Hook up drawer button listener
 const readerPrefBtn = document.getElementById('drawer-reader-preferences-btn');
 if (readerPrefBtn) {
     readerPrefBtn.addEventListener('click', (e) => {
@@ -1253,10 +1247,8 @@ if (readerPrefBtn) {
     });
 }
 
-// Apply stored preferences on page startup
 applyReaderPreferences();
 
-// Open Help & Support Modal
 function showHelpSupportModal() {
     const modalHtml = `
     <div id="help-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px;">
@@ -1300,15 +1292,12 @@ function showHelpSupportModal() {
     </div>
   `;
 
-    // Remove existing modal if already open
     const existing = document.getElementById('help-modal');
     if (existing) existing.remove();
 
-    // Inject modal into the DOM
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 
-// Hook up sidebar drawer listener
 const helpSupportBtn = document.getElementById('drawer-help-support-btn');
 if (helpSupportBtn) {
     helpSupportBtn.addEventListener('click', (e) => {
@@ -1317,3 +1306,112 @@ if (helpSupportBtn) {
         showHelpSupportModal();
     });
 }
+
+// Function to fetch and display research guides in a catalog grid
+async function fetchResearchGuides() {
+    const researchGrid = document.getElementById('researchGrid'); // Make sure you have a container with this ID in your HTML
+    if (!researchGrid) return;
+
+    researchGrid.innerHTML = '<p class="loading-text">Loading academic guides...</p>';
+
+    // Fetch guides from Supabase
+    const { data: guides, error } = await supabaseClient
+        .from('research_guides')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching research guides:', error.message);
+        researchGrid.innerHTML = '<p class="error-text">Could not load research guides right now.</p>';
+        return;
+    }
+
+    if (!guides || guides.length === 0) {
+        researchGrid.innerHTML = '<p class="empty-text">No research guides available yet. Check back soon!</p>';
+        return;
+    }
+
+    // Clear and render the grid
+    researchGrid.innerHTML = '';
+    guides.forEach(guide => {
+        const card = document.createElement('div');
+        card.className = 'research-card';
+        card.innerHTML = `
+            <div class="card-badge">${guide.category}</div>
+            <h3>${guide.title}</h3>
+            <p class="topic-match"><strong>Target Topic:</strong> ${guide.target_topic_match || 'General Research'}</p>
+            <p class="preview-snippet">${guide.preview_content.substring(0, 120)}...</p>
+            <button class="read-guide-btn" data-id="${guide.id}">Read Guide</button>
+        `;
+
+        // Click event to open the reader view
+        card.querySelector('.read-guide-btn').addEventListener('click', () => {
+            openResearchReader(guide);
+        });
+
+        researchGrid.appendChild(card);
+    });
+}
+
+// Function to handle the reader view and Paywall trigger
+function openResearchReader(guide) {
+    const readerContainer = document.getElementById('readerView'); // Your main reader container
+    if (!readerContainer) return;
+
+    // Assume you have a global or state variable tracking user subscription status (e.g., window.currentUserSubscribed)
+    const isSubscribed = window.currentUserSubscribed || false;
+
+    let contentToDisplay = '';
+
+    if (guide.is_premium && !isSubscribed) {
+        // Show free preview + Paystack Subscription Trigger Wall
+        contentToDisplay = `
+            <div class="research-reader-content">
+                <span class="category-tag">${guide.category}</span>
+                <h2>${guide.title}</h2>
+                <div class="free-section">
+                    <h3>Introduction & Overview (Free Preview)</h3>
+                    <p>${guide.preview_content}</p>
+                </div>
+                <div class="paywall-overlay">
+                    <div class="paywall-box">
+                        <h3>🔒 Unlock Full Methodology & Sample Analysis</h3>
+                        <p>To access the complete step-by-step breakdown, data collection framework, and sample chapter drafts for this topic, unlock full access.</p>
+                        <button id="paystackTriggerBtn" class="subscribe-btn">Subscribe via Paystack</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        // Show full comprehensive guide for subscribed users or free guides
+        contentToDisplay = `
+            <div class="research-reader-content">
+                <span class="category-tag">${guide.category}</span>
+                <h2>${guide.title}</h2>
+                <div class="full-section">
+                    <h3>Overview</h3>
+                    <p>${guide.preview_content}</p>
+                    <hr />
+                    <h3>Full Methodology & Analysis</h3>
+                    <div class="full-text-body">${guide.full_content}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    readerContainer.innerHTML = contentToDisplay;
+
+    // If the paywall button is rendered, hook up your existing Paystack popup function here
+    const payBtn = document.getElementById('paystackTriggerBtn');
+    if (payBtn) {
+        payBtn.addEventListener('click', () => {
+            // Call your existing Paystack initialization function here
+            initializePaystackPayment(); 
+        });
+    }
+}
+
+// Automatically load guides when page loads (if container exists)
+document.addEventListener('DOMContentLoaded', () => {
+    fetchResearchGuides();
+});
