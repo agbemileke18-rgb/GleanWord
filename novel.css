@@ -454,21 +454,20 @@ body {
     overflow-y: auto;
 }
 
-/* 2. FULLSCREEN READER OVERLAY (ACTIVE ONLY WHEN READING) */
 #reader-view {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100dvh;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    background-color: var(--bg-primary, #0f172a) !important;
+    z-index: 999999 !important; /* Forces reader view above the top GleanWord header */
     display: flex;
     flex-direction: column;
-    background-color: var(--bg-primary, #0f172a);
-    color: inherit;
-    z-index: 1000;
     box-sizing: border-box;
     padding: 0 12px 10px 12px;
-    /* Set top padding to 0 so it touches the top edge */
 }
 
 #reader-view.hidden {

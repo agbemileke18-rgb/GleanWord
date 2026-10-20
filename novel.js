@@ -94,6 +94,7 @@ async function openReaderForWork(work) {
 
     catalogView.classList.add('hidden');
     readerView.classList.remove('hidden');
+    document.querySelector('header')?.classList.add('hidden'); 
     window.scrollTo(0, 0);
 
     document.getElementById('reader-book-title').textContent = work.title;
@@ -425,13 +426,11 @@ function goToPreviousChapter() {
     if (typeof currentChapterIndex !== 'undefined' && currentChapterIndex > 0) {
         currentChapterIndex--;
 
-        // Disable smooth scroll for instant positioning at the last page
         readerBody.style.scrollBehavior = 'auto';
         renderCurrentChapter();
 
         readerBody.scrollLeft = readerBody.scrollWidth;
 
-        // Restore smooth scrolling for normal page turns
         requestAnimationFrame(() => {
             readerBody.style.scrollBehavior = '';
         });
@@ -476,7 +475,6 @@ function renderGrammarSubfieldFilters() {
         const isActive = index === 0;
         btn.style.cssText = `background: ${isActive ? '#38bdf8' : '#1e293b'}; color: ${isActive ? '#0f172a' : '#cbd5e1'}; border: 1px solid ${isActive ? '#38bdf8' : '#334155'}; padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; cursor: pointer; font-weight: 600; transition: all 0.2s;`;
 
-        // Wire up the click action to filter cards instantly
         btn.addEventListener('click', () => {
             filterContainer.querySelectorAll('button').forEach(b => {
                 b.style.background = '#1e293b';
@@ -495,7 +493,6 @@ function renderGrammarSubfieldFilters() {
     filterContainer.style.display = 'flex';
 }
 
-// Active filtering logic
 function filterWorksBySubfield(subfield) {
     const cards = document.querySelectorAll('.book-card');
     cards.forEach(card => {
@@ -508,7 +505,6 @@ function filterWorksBySubfield(subfield) {
     });
 }
 
-// Function to hide filters when switching back to Novels/Poetry
 function hideGrammarSubfieldFilters() {
     const filterContainer = document.getElementById('subfieldFilterContainer');
     if (filterContainer) {
@@ -533,8 +529,10 @@ categoryBtns.forEach((btn) => {
 });
 
 function showCatalog() {
-    catalogView.classList.remove('hidden');
     readerView.classList.add('hidden');
+    catalogView.classList.remove('hidden');
+    document.querySelector('header')?.classList.remove('hidden'); 
+    window.scrollTo(0, 0);
 }
 
 backToCatalogBtn.addEventListener('click', showCatalog);

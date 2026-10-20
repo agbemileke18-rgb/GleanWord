@@ -1,10 +1,10 @@
-const CACHE_NAME = 'gleanword-v24';
+const CACHE_NAME = 'gleanword-v25';
 const ASSETS_TO_CACHE = [
     '/',
     '/index.html',
     '/404.html',
-    '/novel.css?v=24',
-    '/novel.js?v=24',
+    '/novel.css?v=25',
+    '/novel.js?v=25',
     '/manifest.json',
     '/novel-192.png',
     '/novel-512.png'
@@ -31,9 +31,7 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// Replace lines 32 - 38:
 self.addEventListener('fetch', (event) => {
-    // Always fetch fresh HTML from the network first
     if (event.request.mode === 'navigate' || event.request.url.includes('index.html')) {
         event.respondWith(
             fetch(event.request).catch(() => caches.match(event.request))
@@ -41,7 +39,6 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Cache-first for images, CSS, JS
     event.respondWith(
         caches.match(event.request).then((cachedResponse) => {
             return cachedResponse || fetch(event.request);
