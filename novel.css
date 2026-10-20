@@ -462,8 +462,9 @@ body {
     bottom: 0 !important;
     width: 100vw !important;
     height: 100dvh !important;
-    background-color: var(--bg-primary, #0f172a) !important;
-    z-index: 999999 !important; /* Forces reader view above the top GleanWord header */
+    background-color: inherit !important;
+    color: inherit !important;
+    z-index: 999999 !important;
     display: flex;
     flex-direction: column;
     box-sizing: border-box;

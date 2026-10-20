@@ -293,7 +293,62 @@ const LEIPZIG_TAGS = {
     "GEN": "Genitive / Associative Marker (e.g., 'ti')"
 };
 
-// Function to append the Interactive Glossing Workshop into the Academic Reader
+// Function to dynamically render the hybrid input tokens for the workshop
+function renderGlossInputs(tokens) {
+    const container = document.getElementById('glossing-tokens-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    // Create or clear the shared datalist element once
+    let datalist = document.getElementById('leipzig-datalist');
+    if (!datalist) {
+        datalist = document.createElement('datalist');
+        datalist.id = 'leipzig-datalist';
+        document.body.appendChild(datalist);
+    }
+    
+    // Populate datalist from your LEIPZIG_TAGS object using Object.entries
+    datalist.innerHTML = Object.entries(LEIPZIG_TAGS).map(([key, desc]) => 
+        `<option value="${key}">${key}: ${desc}</option>`
+    ).join('');
+
+    // Generate input rows for each token
+    tokens.forEach((token, index) => {
+        const tokenDiv = document.createElement('div');
+        tokenDiv.className = 'gloss-token';
+        
+        tokenDiv.innerHTML = `
+            <!-- Tier 1: Source Word -->
+            <span class="source-word">${escapeHtml(token)}</span>
+            
+            <!-- Tier 2: Hybrid Input (Custom Lexical Text OR Leipzig Tag) -->
+            <input 
+                type="text" 
+                class="gloss-input" 
+                list="leipzig-datalist" 
+                placeholder="e.g., buy or FOC"
+                data-index="${index}"
+            />
+        `;
+        
+        container.appendChild(tokenDiv);
+    });
+}
+
+// Helper to format output based on whether it matches your LEIPZIG_TAGS keys
+function getFormattedGloss(inputValue) {
+    const trimmed = inputValue.trim();
+    if (!trimmed) return '***';
+
+    const upper = trimmed.toUpperCase();
+    
+    // Check if the typed value matches any key in your LEIPZIG_TAGS object
+    const isGrammaticalTag = Object.keys(LEIPZIG_TAGS).some(tag => tag.toUpperCase() === upper);
+
+    // Capitalize if it's a grammatical tag, keep lowercase if it's a direct translation
+    return isGrammaticalTag ? upper : trimmed.toLowerCase();
+}
+
 function appendGlossingWorkshopToReader() {
     const readerBody = document.getElementById('reader-body');
     if (!readerBody) return;
