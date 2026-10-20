@@ -105,27 +105,29 @@ body {
 
 .books-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    /* Wider columns to fit horizontal cards */
     gap: 1.5rem;
 }
 
 .book-card {
-    width: 200px;
-    /* Adjust grid item width */
-    aspect-ratio: 2 / 3;
-    /* Enforces a standard vertical book rectangle */
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 14px;
+    background: #1e293b;
+    padding: 12px;
     border-radius: 8px;
-    overflow: hidden;
-    background: #0d0d0d;
-    padding: 10px;
+    cursor: pointer;
+    border: 1px solid #334155;
     box-sizing: border-box;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .book-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
 
 
@@ -184,10 +186,6 @@ body {
     letter-spacing: 0.5px;
     color: var(--accent-color);
     font-weight: 600;
-}
-
-#reader-view {
-    max-width: 680px;
 }
 
 .reader-toolbar {
@@ -291,7 +289,7 @@ body.dark-mode #theme-toggle svg path {
 #reader-body {
     column-width: 100vw;
     column-gap: 20px;
-    height: 75vh;
+    /* height: 75vh; */
 
     overflow-x: hidden;
     overflow-y: hidden;
@@ -421,7 +419,6 @@ body,
     box-sizing: border-box;
 }
 
-/* Lines 420-436: Middle reader box fills available screen space and enables vertical scroll */
 .reader-container {
     flex: 1;
     overflow-y: auto;
@@ -430,16 +427,13 @@ body,
     -webkit-overflow-scrolling: touch;
 }
 
-/* Lines 439-444: Clean paragraph styling (column/snap rules removed) */
 .reader-container p {
     font-size: 1.05rem;
     line-height: 1.6;
     margin-bottom: 1rem;
 }
 
-/* Bottom navigation bar: Anchors left/right buttons to bottom edge */
 .navigation-bar {
-    /* Replace with your actual footer/button container class or ID */
     flex-shrink: 0;
     display: flex;
     justify-content: space-between;
@@ -465,14 +459,16 @@ body {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
+    width: 100vw;
     height: 100dvh;
     display: flex;
     flex-direction: column;
-    background-color: inherit;
+    background-color: var(--bg-primary, #0f172a);
     color: inherit;
     z-index: 1000;
     box-sizing: border-box;
+    padding: 0 12px 10px 12px;
+    /* Set top padding to 0 so it touches the top edge */
 }
 
 #reader-view.hidden {
@@ -481,24 +477,20 @@ body {
 }
 
 #reader-body {
-    height: 100%;
+    flex: 1;
     width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
+    box-sizing: border-box;
 
     /* CSS Multi-Column Pagination */
-    column-width: 100%;
-    column-gap: 40px;
+    column-width: 100vw;
+    column-gap: 20px;
     column-fill: auto;
-
-    box-sizing: border-box;
     scroll-behavior: smooth;
-
-    /* PAGE SNAP (Snaps swipes directly to page columns) */
     scroll-snap-type: x mandatory;
     scroll-snap-stop: always;
 
-    /* Hide scrollbars */
     scrollbar-width: none;
     -ms-overflow-style: none;
 }
@@ -862,22 +854,40 @@ body.light-mode .menu-toggle-btn,
 
 .otp-modal {
     position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     background: rgba(0, 0, 0, 0.6);
-    display: flex; justify-content: center; align-items: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     z-index: 9999;
     backdrop-filter: blur(4px);
 }
+
 .otp-modal-content {
     background: #ffffff;
     padding: 24px;
     border-radius: 12px;
-    width: 90%; max-width: 380px;
+    width: 90%;
+    max-width: 380px;
     text-align: center;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
 }
-.otp-modal-content h3 { margin-top: 0; font-size: 1.25rem; color: #1e293b; }
-.otp-modal-content p { font-size: 0.9rem; color: #64748b; margin-bottom: 16px; }
+
+.otp-modal-content h3 {
+    margin-top: 0;
+    font-size: 1.25rem;
+    color: #1e293b;
+}
+
+.otp-modal-content p {
+    font-size: 0.9rem;
+    color: #64748b;
+    margin-bottom: 16px;
+}
+
 #otpCodeInput {
     width: 100%;
     padding: 12px;
@@ -889,10 +899,31 @@ body.light-mode .menu-toggle-btn,
     margin-bottom: 20px;
     outline: none;
 }
-#otpCodeInput:focus { border-color: #0284c7; }
-.otp-modal-actions { display: flex; gap: 12px; }
-.otp-modal-actions button {
-    flex: 1; padding: 10px; border-radius: 6px; border: none; font-weight: 600; cursor: pointer;
+
+#otpCodeInput:focus {
+    border-color: #0284c7;
 }
-.btn-primary { background: #0284c7; color: white; }
-.btn-secondary { background: #f1f5f9; color: #475569; }
+
+.otp-modal-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.otp-modal-actions button {
+    flex: 1;
+    padding: 10px;
+    border-radius: 6px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-primary {
+    background: #0284c7;
+    color: white;
+}
+
+.btn-secondary {
+    background: #f1f5f9;
+    color: #475569;
+}

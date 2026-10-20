@@ -28,8 +28,7 @@ const fontSizeLabel = document.getElementById('font-size-label');
 async function fetchWorks(category = 'all') {
     booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">Loading library...</p>`;
 
-    let query = supabaseClient.from('works').select('*');
-    if (category !== 'all') {
+    let query = supabaseClient.from('works').select('id, title, description, cover_url, category, subfield, created_at'); if (category !== 'all') {
         query = query.eq('category', category);
     }
 
@@ -55,23 +54,29 @@ function renderBooksGrid(works) {
     works.forEach((work) => {
         const card = document.createElement('article');
         card.className = 'book-card';
+        
+        // Powers the subfield filter buttons
+        card.setAttribute('data-subfield', work.subfield ? work.subfield.trim() : '');
         card.onclick = () => openReaderForWork(work);
 
         const placeholderImg = '/path/to/your/default-placeholder.png';
         const imageSource = work.cover_url || placeholderImg;
+        const descriptionText = work.description || 'Explore this research guide...';
+        const authorName = work.author || 'Ann Alani'; // Pulls author from DB or defaults nicely
 
         card.innerHTML = `
-      <div style="position: relative; width: 100%; height: 100%;">
-        <img src="${imageSource}" alt="${escapeHtml(work.title)}" class="book-cover" style="width:100%; display:block;" />
-        <button 
-          type="button"
-          onclick="event.stopPropagation(); toggleBookmark('${work.id}', \`${escapeHtml(work.title)}\`, '${work.category || ''}')" 
-          style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); border: none; border-radius: 50%; width: 36px; height: 36px; color: #fff; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; z-index: 5;" 
-          title="Save to Reading List">
-          🔖
-        </button>
-      </div>
-    `;
+            <!-- Compact cover thumbnail on the left -->
+            <div style="flex-shrink: 0; width: 85px; aspect-ratio: 2/3; overflow: hidden; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+                <img src="${imageSource}" alt="${escapeHtml(work.title)}" style="width: 100%; height: 100%; object-fit: cover;" />
+            </div>
+            
+            <!-- Title, Author, and Description stacked on the right -->
+            <div style="flex-grow: 1; display: flex; flex-direction: column; text-align: left; min-width: 0;">
+                <h4 style="margin: 0 0 2px 0; color: #f8fafc; font-size: 0.95rem; font-weight: 600; line-height: 1.3;">${escapeHtml(work.title)}</h4>
+                <span style="font-size: 0.75rem; color: #38bdf8; font-weight: 500; margin-bottom: 6px; display: block;">By ${escapeHtml(authorName)}</span>
+                <p style="font-size: 0.78rem; color: #94a3b8; margin: 0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(descriptionText)}</p>
+            </div>
+        `;
 
         booksGrid.appendChild(card);
     });
@@ -115,7 +120,6 @@ async function openReaderForWork(work) {
     renderCurrentChapter();
 }
 
-// Helper to get the correct unit label (Track vs Chapter) based on category
 function getUnitLabel(workCategory, isPlural = false) {
     const isPoetry = workCategory && workCategory.toLowerCase() === 'poetry';
     if (isPlural) {
@@ -125,7 +129,6 @@ function getUnitLabel(workCategory, isPlural = false) {
 }
 
 function renderCurrentChapter() {
-    // 1. DECLARE CHAPTER FIRST
     const chapter = currentWorkChapters[currentChapterIndex];
     const readerBody = document.getElementById('reader-body');
     if (!readerBody) return;
@@ -133,7 +136,6 @@ function renderCurrentChapter() {
     readerBody.style.scrollBehavior = 'auto';
     const paywallBanner = document.getElementById('paywallBanner');
 
-    // 2. SAFELY DETERMINE CATEGORY & UNIT LABELS
     let workCategory = '';
 
     if (window.currentWork && window.currentWork.category) {
@@ -180,13 +182,11 @@ function renderCurrentChapter() {
         sectionElement.textContent = chapter?.section_title || '';
     }
 
-    // Access check: Rely directly on Supabase RLS
     if (chapter && chapter.content) {
         const rawContent = chapter.content;
 
         let contentHTML = '';
 
-        // Check if current item is an academic/grammar guide
         if (workCategory && workCategory.toLowerCase() === 'grammar') {
             contentHTML = `
                 <div class="academic-reader-header" style="text-align: center; margin-bottom: 2rem;">
@@ -196,7 +196,6 @@ function renderCurrentChapter() {
                 <div class="academic-body">${rawContent}</div>
             `;
         } else {
-            // Standard Novel / Poetry formatting
             contentHTML = `
                 <div class="chapter-marker chapter-start">${unitLabel} Begins</div>
                 ${rawContent}
@@ -338,7 +337,6 @@ function appendGlossingWorkshopToReader() {
 
     readerBody.appendChild(workshopDiv);
 
-    // Event handler to dynamically build dropdowns from LEIPZIG_TAGS
     document.getElementById('workshopGenerateBtn').addEventListener('click', () => {
         const sentence = document.getElementById('workshopSourceInput').value.trim();
         if (!sentence) return;
@@ -364,11 +362,8 @@ function appendGlossingWorkshopToReader() {
         });
 
         document.getElementById('workshopOutputArea').style.display = 'block';
-    }); // <--- Line 355 in your image
+    });
 
-    // ==========================================
-    // PASTE HERE: Export to Clipboard Handler
-    // ==========================================
     const exportBtn = document.getElementById('workshopExportBtn');
     if (exportBtn) {
         exportBtn.addEventListener('click', () => {
@@ -380,7 +375,6 @@ function appendGlossingWorkshopToReader() {
 
             if (!sourceSentence) return;
 
-            // Build Tier 1 (Words) and Tier 2 (Glosses) aligned with tabs
             let tier1Words = [];
             let tier2Glosses = [];
 
@@ -393,7 +387,6 @@ function appendGlossingWorkshopToReader() {
                 tier2Glosses.push(tag || '---');
             });
 
-            // Format as standard academic 3-tier Interlinear Glossed Text (IGT)
             const formattedOutput =
                 `${tier1Words.join('\t')}
 ${tier2Glosses.join('\t')}
@@ -416,7 +409,7 @@ ${tier2Glosses.join('\t')}
             });
         });
     }
-} // <--- Closing brace for appendGlossingWorkshopToReader()
+}
 
 document.getElementById('next-chapter-btn')?.addEventListener('click', () => {
     if (typeof currentChapterIndex !== 'undefined' && currentChapterIndex < currentWorkChapters.length - 1) {
@@ -449,11 +442,92 @@ document.getElementById('prev-chapter-btn')?.addEventListener('click', () => {
     goToPreviousChapter();
 });
 
+function renderGrammarSubfieldFilters() {
+    let filterContainer = document.getElementById('subfieldFilterContainer');
+    if (!filterContainer) {
+        filterContainer = document.createElement('div');
+        filterContainer.id = 'subfieldFilterContainer';
+        filterContainer.style.cssText = 'display: flex; gap: 8px; flex-wrap: wrap; margin: 1.5rem auto; justify-content: center; max-width: 900px;';
+        
+        const catalogHeader = document.querySelector('#catalog-view p') || document.querySelector('#catalog-view h1');
+        if (catalogHeader && catalogHeader.parentNode) {
+            catalogHeader.parentNode.insertBefore(filterContainer, catalogHeader.nextSibling);
+        } else {
+            const booksGrid = document.getElementById('books-grid');
+            if (booksGrid && booksGrid.parentNode) {
+                booksGrid.parentNode.insertBefore(filterContainer, booksGrid);
+            }
+        }
+    }
+
+    const subfields = [
+        "All Grammar",
+        "Syntax & Morphology",
+        "Formal Semantics & Pragmatics",
+        "Digital Sociolinguistics & CMC",
+        "Phonology & Phonetics"
+    ];
+
+    filterContainer.innerHTML = '';
+    subfields.forEach((sub, index) => {
+        const btn = document.createElement('button');
+        btn.textContent = sub;
+        
+        const isActive = index === 0;
+        btn.style.cssText = `background: ${isActive ? '#38bdf8' : '#1e293b'}; color: ${isActive ? '#0f172a' : '#cbd5e1'}; border: 1px solid ${isActive ? '#38bdf8' : '#334155'}; padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; cursor: pointer; font-weight: 600; transition: all 0.2s;`;
+
+        // Wire up the click action to filter cards instantly
+        btn.addEventListener('click', () => {
+            filterContainer.querySelectorAll('button').forEach(b => {
+                b.style.background = '#1e293b';
+                b.style.color = '#cbd5e1';
+                b.style.borderColor = '#334155';
+            });
+            btn.style.background = '#38bdf8';
+            btn.style.color = '#0f172a';
+            btn.style.borderColor = '#38bdf8';
+
+            filterWorksBySubfield(sub);
+        });
+
+        filterContainer.appendChild(btn);
+    });
+    filterContainer.style.display = 'flex';
+}
+
+// Active filtering logic
+function filterWorksBySubfield(subfield) {
+    const cards = document.querySelectorAll('.book-card');
+    cards.forEach(card => {
+        const cardSubfield = card.getAttribute('data-subfield');
+        if (subfield === 'All Grammar' || cardSubfield === subfield) {
+            card.style.display = 'flex';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+// Function to hide filters when switching back to Novels/Poetry
+function hideGrammarSubfieldFilters() {
+    const filterContainer = document.getElementById('subfieldFilterContainer');
+    if (filterContainer) {
+        filterContainer.style.display = 'none';
+    }
+}
+
 categoryBtns.forEach((btn) => {
     btn.addEventListener('click', (e) => {
         categoryBtns.forEach((b) => b.classList.remove('active'));
         e.target.classList.add('active');
         activeCategory = e.target.dataset.category;
+
+        if (activeCategory && activeCategory.toLowerCase() === 'grammar') {
+            renderGrammarSubfieldFilters();
+        } else {
+            hideGrammarSubfieldFilters();
+        }
+
         fetchWorks(activeCategory);
     });
 });
@@ -513,6 +587,7 @@ function updateFontSize() {
 }
 
 fetchWorks('all');
+hideGrammarSubfieldFilters();
 
 const lastReadWork = localStorage.getItem('lastReadWork');
 const lastReadChapter = localStorage.getItem('lastReadChapterIndex');
@@ -577,7 +652,6 @@ document.getElementById('page-left-btn')?.addEventListener('click', () => {
     }
 });
 
-// --- TOUCH & SWIPE GESTURES ---
 
 let touchStartX = 0;
 let touchEndX = 0;
@@ -600,7 +674,6 @@ function handleSwipeGesture() {
     const readerBody = document.getElementById('reader-body');
     if (!readerBody) return;
 
-    // Ensure horizontal swipe is intentional (more than 40px)
     if (Math.abs(swipeDistanceX) > 40) {
         const maxScroll = readerBody.scrollWidth - readerBody.clientWidth;
         const currentScroll = readerBody.scrollLeft;
@@ -1385,7 +1458,6 @@ function showReaderPreferencesModal() {
         document.getElementById('pref-font-size-label').textContent = `${currentFontSize}px`;
     });
 
-    // Hook up Font Family select
     document.getElementById('pref-font-family').addEventListener('change', (e) => {
         currentFontFamily = e.target.value;
         localStorage.setItem('gleanword_font_family', currentFontFamily);
@@ -1491,8 +1563,6 @@ async function fetchResearchGuides() {
         researchGrid.innerHTML = '<p class="empty-text">No research guides available yet. Check back soon!</p>';
         return;
     }
-
-    // Clear and render the grid
     researchGrid.innerHTML = '';
     guides.forEach(guide => {
         const card = document.createElement('div');
@@ -1562,17 +1632,14 @@ function openResearchReader(guide) {
 
     readerContainer.innerHTML = contentToDisplay;
 
-    // If the paywall button is rendered, hook up your existing Paystack popup function here
     const payBtn = document.getElementById('paystackTriggerBtn');
     if (payBtn) {
         payBtn.addEventListener('click', () => {
-            // Call your existing Paystack initialization function here
             initializePaystackPayment();
         });
     }
 }
 
-// Automatically load guides when page loads (if container exists)
 document.addEventListener('DOMContentLoaded', () => {
     fetchResearchGuides();
 });
