@@ -106,7 +106,6 @@ body {
 .books-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    /* Wider columns to fit horizontal cards */
     gap: 1.5rem;
 }
 
@@ -116,7 +115,7 @@ body {
     flex-direction: row;
     align-items: flex-start;
     gap: 14px;
-    background: #1e293b;
+    background: black;
     padding: 12px;
     border-radius: 8px;
     cursor: pointer;
@@ -214,7 +213,6 @@ body {
 
 .reader-header {
     margin-bottom: 0.1rem;
-    /* border-bottom: 1px solid var(--border-color); */
     padding-bottom: 0.1rem;
 }
 
@@ -344,7 +342,6 @@ body.dark-mode #theme-toggle svg path {
 
 .subscribe-btn {
     background-color: #e50914;
-    /* Or your accent color */
     color: #ffffff;
     border: none;
     padding: 10px 20px;
@@ -361,7 +358,6 @@ body.dark-mode #theme-toggle svg path {
     transform: translateY(-2px);
 }
 
-/* Modal Overlay Styling */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -401,11 +397,9 @@ body.dark-mode #theme-toggle svg path {
 
 .reader-body {
     user-select: none;
-    /* Disables text highlighting/copying in the reader */
     -webkit-user-select: none;
 }
 
-/* Lines 411-417: Lock outer app shell to exact mobile viewport height */
 html,
 body,
 #app {
@@ -443,8 +437,6 @@ body,
     border-top: 1px solid #eeeeee;
 }
 
-/* Lines 411-417: Lock outer app shell to exact mobile viewport height */
-/* 1. RESTORE DASHBOARD SCROLLING */
 html,
 body {
     margin: 0;
@@ -483,7 +475,6 @@ body {
     overflow-y: hidden;
     box-sizing: border-box;
 
-    /* CSS Multi-Column Pagination */
     column-width: 100vw;
     column-gap: 20px;
     column-fill: auto;
@@ -566,7 +557,6 @@ body.light-mode .menu-toggle-btn,
     color: #121212;
 }
 
-/* Backdrop Overlay */
 .sidebar-overlay {
     position: fixed;
     inset: 0;
@@ -583,7 +573,6 @@ body.light-mode .menu-toggle-btn,
     visibility: visible;
 }
 
-/* Side Drawer Styling */
 .sidebar-drawer {
     position: fixed;
     top: 0;
@@ -629,7 +618,6 @@ body.light-mode .menu-toggle-btn,
     line-height: 1;
 }
 
-/* Default Blue Subscribe Button */
 .drawer-sub-btn {
     width: 100%;
     padding: 14px 18px;
@@ -639,7 +627,6 @@ body.light-mode .menu-toggle-btn,
     border-radius: 8px;
     cursor: pointer;
     background-color: #007bff;
-    /* Sleek Blue */
     color: #ffffff;
     transition: all 0.25s ease;
     box-shadow: 0 4px 12px rgba(0, 123, 255, 0.25);
@@ -649,7 +636,6 @@ body.light-mode .menu-toggle-btn,
     background-color: #0056b3;
 }
 
-/* Gold Premium User State */
 .drawer-sub-btn.premium-user {
     background: linear-gradient(135deg, #d4af37 0%, #f3e5ab 50%, #aa771c 100%);
     color: #111111;
@@ -684,7 +670,6 @@ body.light-mode .menu-toggle-btn,
     color: #ffffff;
 }
 
-/* Responsive Mobile Header Fix */
 @media (max-width: 650px) {
     .navbar {
         display: flex;
@@ -702,17 +687,14 @@ body.light-mode .menu-toggle-btn,
     .logo {
         font-size: 3rem;
         margin-right: auto;
-        /* Pushes Theme Toggle to far right */
         padding-left: 8px;
     }
 
     #theme-toggle {
         flex-shrink: 0;
         margin-left: auto;
-        /* Ensures theme toggle stays pinned right */
     }
 
-    /* Row 2: Category Bar with Horizontal Swipe */
     .nav-links {
         width: 100%;
         display: flex;
@@ -723,31 +705,25 @@ body.light-mode .menu-toggle-btn,
         margin-top: 6px;
         border-top: 1px solid rgba(255, 255, 255, 0.08);
         -webkit-overflow-scrolling: touch;
-        /* Smooth iOS swipe */
         scrollbar-width: none;
-        /* Hide Firefox scrollbar */
     }
 
     .nav-links::-webkit-scrollbar {
         display: none;
-        /* Hide Chrome/Safari scrollbar */
     }
 
     .nav-btn {
         flex-shrink: 0;
-        /* Prevents buttons from squishing */
         padding: 6px 14px;
         font-size: 0.85rem;
     }
 }
 
-/* Release Schedule End Card */
 .chapter-end-card {
     margin: 3rem auto 2rem;
     padding: 1.8rem 1.5rem;
     background: linear-gradient(145deg, #181824 0%, #101018 100%);
     border: 1px solid rgba(212, 175, 55, 0.25);
-    /* Subtle gold border */
     border-radius: 12px;
     text-align: center;
     max-width: 520px;
@@ -763,7 +739,6 @@ body.light-mode .menu-toggle-btn,
 .chapter-end-card h3 {
     font-size: 1.2rem;
     color: #f3e5ab;
-    /* Soft gold accent */
     margin-bottom: 0.4rem;
 }
 
@@ -785,12 +760,10 @@ body.light-mode .menu-toggle-btn,
     letter-spacing: 0.5px;
 }
 
-/* Chapter Epigraph & Scene Break Styling */
 .chapter-epigraph {
     font-style: italic;
     font-size: 1.05rem;
     color: #d4af37;
-    /* Gold accent */
     border-left: 3px solid #d4af37;
     padding-left: 1rem;
     margin-bottom: 2rem;
@@ -804,7 +777,6 @@ body.light-mode .menu-toggle-btn,
     margin: 2.5rem 0;
 }
 
-/* Chapter Boundary Markers */
 .chapter-marker {
     display: flex;
     align-items: center;
@@ -821,7 +793,6 @@ body.light-mode .menu-toggle-btn,
     content: '';
     flex: 1;
     border-bottom: 1px dashed rgba(212, 175, 55, 0.35);
-    /* Subtle gold dashed line */
 }
 
 .chapter-marker::before {
@@ -832,10 +803,8 @@ body.light-mode .menu-toggle-btn,
     margin-left: 1.2rem;
 }
 
-/* Start Marker Accent */
 .chapter-marker.chapter-start {
     color: #d4af37;
-    /* Soft gold text */
     margin-top: 1rem;
     margin-bottom: 2rem;
 }

@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>GleanWord - Novels, Poetry & Grammar</title>
-  <link rel="stylesheet" href="novel.css?v=27">
+  <link rel="stylesheet" href="novel.css?v=28">
   <link rel="manifest" href="manifest.json" />
 </head>
 
@@ -22,6 +22,10 @@
       <button class="nav-btn" data-category="poetry">Poetry</button>
       <button class="nav-btn" data-category="grammar">Grammar</button>
     </nav>
+
+    <button id="open-add-resource-btn" class="btn-secondary"
+      style="margin-right: 8px; padding: 6px 12px; cursor: pointer;">+ Add Text</button>
+
     <button id="theme-toggle" class="icon-btn" aria-label="Toggle Theme">&#9728;</button>
   </header>
 
@@ -138,9 +142,73 @@
       </div>
     </div>
   </div>
+
+  <!-- Add Resource Modal -->
+  <div id="add-resource-modal" class="paywall-overlay"
+    style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center;">
+    <div
+      style="background: var(--bg-card, #ffffff); color: var(--text-color, #1f2937); padding: 24px; border-radius: 8px; width: 90%; max-width: 500px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0;">Add Corpus Resource</h3>
+        <button id="close-resource-modal-btn"
+          style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: inherit;">&times;</button>
+      </div>
+
+      <form id="resource-modal-form" style="display: flex; flex-direction: column; gap: 12px;">
+        <div>
+          <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Title</label>
+          <input type="text" id="modal-corpus-title" placeholder="e.g., Ògbójú Ọdẹ..." required
+            style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        </div>
+
+        <div>
+          <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Author /
+            Source</label>
+          <input type="text" id="modal-corpus-author" placeholder="e.g., D.O. Fágúnwà" required
+            style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        </div>
+
+        <div>
+          <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Category</label>
+          <select id="modal-corpus-category"
+            style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            <option value="grammar">Grammar</option>
+            <option value="novel">Novel</option>
+            <option value="poetry">Poetry</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Content /
+            Text</label>
+          <textarea id="modal-corpus-content" placeholder="Paste Yorùbá text here..." rows="5" required
+            style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></textarea>
+        </div>
+
+        <div style="margin-top: 10px;">
+          <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Short Description /
+            Abstract</label>
+          <textarea id="modal-corpus-description" rows="2" placeholder="Brief summary of the paper or text..."
+            style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></textarea>
+        </div>
+
+        <div style="margin-top: 10px;">
+          <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Cover Image URL
+            (Optional)</label>
+          <input type="text" id="modal-corpus-cover" placeholder="https://example.com/cover.png"
+            style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        </div>
+
+        <button type="submit"
+          style="padding: 10px; background: #4f46e5; color: white; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; margin-top: 8px;">Save
+          to Corpus</button>
+      </form>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://js.paystack.co/v1/inline.js"></script>
-  <script src="novel.js?v=27"></script>
+  <script type="module" src="./novel.js?v=28"></script>
 </body>
 
 </html>

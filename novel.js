@@ -1,3 +1,34 @@
+import { normalizeYorubaText } from './utils/normalizeYoruba.js';
+import { saveCorpusText } from './services/corpusService.js';
+
+export async function handleTextSubmission(supabaseClient, rawTitle, rawAuthor, rawCategory, rawContent, rawDescription = '', rawCoverUrl = '') {
+    try {
+        const title = normalizeYorubaText(rawTitle);
+        const author = normalizeYorubaText(rawAuthor);
+        const content = normalizeYorubaText(rawContent);
+        const description = normalizeYorubaText(rawDescription);
+        const category = rawCategory;
+        const cover_url = rawCoverUrl.trim();
+
+        const savedRecord = await saveCorpusText(supabaseClient, {
+            title,
+            author,
+            content,
+            category,
+            description,
+            cover_url,
+            status: 'pending' // Moderation queue default
+        });
+
+        console.log('Successfully saved to GleanWord corpus:', savedRecord);
+        return savedRecord;
+
+    } catch (error) {
+        console.error('Error processing text in novel.js:', error.message);
+        throw error;
+    }
+}
+
 let currentPendingEmail = "";
 
 const SUPABASE_URL = 'https://bvdcddrjhxoqaslivqiu.supabase.co';
@@ -26,26 +57,55 @@ const fontDecreaseBtn = document.getElementById('font-decrease');
 const fontSizeLabel = document.getElementById('font-size-label');
 
 async function fetchWorks(category = 'all') {
-    booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">Loading library...</p>`;
+    booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">Loading resources...</p>`;
 
-    let query = supabaseClient.from('works').select('id, title, description, cover_url, category, subfield, created_at'); if (category !== 'all') {
-        query = query.eq('category', category);
+    try {
+        // 1. Fetch works
+        let worksQuery = supabaseClient.from('works').select('*');
+        if (category !== 'all') {
+            worksQuery = worksQuery.eq('category', category);
+        }
+
+        // 2. Fetch corpus texts
+        let corpusQuery = supabaseClient.from('corpus_texts')
+            .select('*')
+            .eq('status', 'approved');
+        if (category !== 'all') {
+            corpusQuery = corpusQuery.ilike('category', `%${category}%`);
+        }
+
+        const [{ data: works, error: worksErr }, { data: corpus, error: corpusErr }] = await Promise.all([
+            worksQuery,
+            corpusQuery
+        ]);
+
+        if (worksErr) console.error('Error fetching works:', worksErr);
+        if (corpusErr) console.error('Error fetching corpus:', corpusErr);
+
+        const formattedCorpus = (corpus || []).map(item => ({
+            id: item.id,
+            title: item.title,
+            author: item.author || 'Ann Alani',
+            description: item.content ? item.content.substring(0, 110) + '...' : 'User submitted Yorùbá corpus resource.',
+            category: item.category || 'grammar',
+            cover_url: null,
+            content: item.content,
+            isCorpusText: true
+        }));
+
+        const allWorks = [...(works || []), ...formattedCorpus];
+
+        if (allWorks.length === 0) {
+            booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">No resources found for this category.</p>`;
+            return;
+        }
+
+        renderBooksGrid(allWorks);
+
+    } catch (err) {
+        console.error('Failed to load works and corpus:', err);
+        booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">Error loading catalog.</p>`;
     }
-
-    const { data: works, error } = await query;
-
-    if (error) {
-        console.error('Error fetching works:', error);
-        booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: red;">Failed to load content. Check your Supabase URL & Key.</p>`;
-        return;
-    }
-
-    if (!works || works.length === 0) {
-        booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">No works found in this category.</p>`;
-        return;
-    }
-
-    renderBooksGrid(works);
 }
 
 function renderBooksGrid(works) {
@@ -54,8 +114,7 @@ function renderBooksGrid(works) {
     works.forEach((work) => {
         const card = document.createElement('article');
         card.className = 'book-card';
-        
-        // Powers the subfield filter buttons
+
         card.setAttribute('data-subfield', work.subfield ? work.subfield.trim() : '');
         card.onclick = () => openReaderForWork(work);
 
@@ -94,7 +153,7 @@ async function openReaderForWork(work) {
 
     catalogView.classList.add('hidden');
     readerView.classList.remove('hidden');
-    document.querySelector('header')?.classList.add('hidden'); 
+    document.querySelector('header')?.classList.add('hidden');
     window.scrollTo(0, 0);
 
     document.getElementById('reader-book-title').textContent = work.title;
@@ -222,11 +281,9 @@ function renderCurrentChapter() {
         }
 
     } else {
-        // Hide external paywall banner so only one banner renders
         if (paywallBanner) paywallBanner.classList.add('hidden');
 
         if (workCategory && workCategory.toLowerCase() === 'grammar') {
-            // Custom Paywall layout for Academic Guides
             readerBody.innerHTML = `
                 <div class="research-paywall-card" style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); border: 1px solid #6366f1; border-radius: 12px; padding: 2.5rem 1.5rem; text-align: center; margin: 2rem 0;">
                     <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔒</div>
@@ -238,7 +295,6 @@ function renderCurrentChapter() {
                 </div>
             `;
         } else {
-            // Standard Paywall for Novels / Poetry
             readerBody.innerHTML = `
                 <div class="locked-chapter-banner" style="text-align: center; padding: 3rem 1rem;">
                     <p style="font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem;">🔒 Unlock this ${unitLabel.toLowerCase()}</p>
@@ -262,7 +318,6 @@ function renderCurrentChapter() {
     if (nextBtn) nextBtn.style.display = currentChapterIndex < currentWorkChapters.length - 1 ? 'inline-block' : 'none';
 }
 
-// Data dictionary for Leipzig Glossing Rules & Local Extensions
 const LEIPZIG_TAGS = {
     "1SG": "First-Person Singular",
     "2SG": "Second-Person Singular",
@@ -293,30 +348,26 @@ const LEIPZIG_TAGS = {
     "GEN": "Genitive / Associative Marker (e.g., 'ti')"
 };
 
-// Function to dynamically render the hybrid input tokens for the workshop
 function renderGlossInputs(tokens) {
     const container = document.getElementById('glossing-tokens-container');
     if (!container) return;
     container.innerHTML = '';
 
-    // Create or clear the shared datalist element once
     let datalist = document.getElementById('leipzig-datalist');
     if (!datalist) {
         datalist = document.createElement('datalist');
         datalist.id = 'leipzig-datalist';
         document.body.appendChild(datalist);
     }
-    
-    // Populate datalist from your LEIPZIG_TAGS object using Object.entries
-    datalist.innerHTML = Object.entries(LEIPZIG_TAGS).map(([key, desc]) => 
+
+    datalist.innerHTML = Object.entries(LEIPZIG_TAGS).map(([key, desc]) =>
         `<option value="${key}">${key}: ${desc}</option>`
     ).join('');
 
-    // Generate input rows for each token
     tokens.forEach((token, index) => {
         const tokenDiv = document.createElement('div');
         tokenDiv.className = 'gloss-token';
-        
+
         tokenDiv.innerHTML = `
             <!-- Tier 1: Source Word -->
             <span class="source-word">${escapeHtml(token)}</span>
@@ -330,7 +381,7 @@ function renderGlossInputs(tokens) {
                 data-index="${index}"
             />
         `;
-        
+
         container.appendChild(tokenDiv);
     });
 }
@@ -341,7 +392,7 @@ function getFormattedGloss(inputValue) {
     if (!trimmed) return '***';
 
     const upper = trimmed.toUpperCase();
-    
+
     // Check if the typed value matches any key in your LEIPZIG_TAGS object
     const isGrammaticalTag = Object.keys(LEIPZIG_TAGS).some(tag => tag.toUpperCase() === upper);
 
@@ -401,22 +452,34 @@ function appendGlossingWorkshopToReader() {
         const grid = document.getElementById('workshopBlocksGrid');
         grid.innerHTML = '';
 
-        let optionsHtml = '<option value="">Select Tag...</option>';
-        for (const [tag, description] of Object.entries(LEIPZIG_TAGS)) {
-            optionsHtml += `<option value="${tag}">${tag} (${description})</option>`;
+        // 1. Create shared datalist element if it doesn't exist
+        let datalist = document.getElementById('leipzig-datalist');
+        if (!datalist) {
+            datalist = document.createElement('datalist');
+            datalist.id = 'leipzig-datalist';
+            document.body.appendChild(datalist);
         }
+
+        // 2. Populate datalist options from LEIPZIG_TAGS
+        datalist.innerHTML = Object.entries(LEIPZIG_TAGS).map(([tag, desc]) =>
+            `<option value="${tag}">${tag}: ${desc}</option>`
+        ).join('');
 
         words.forEach((word, index) => {
             grid.innerHTML += `
-                <div style="background: #0f172a; padding: 8px; border-radius: 6px; border: 1px solid #334155; min-width: 100px; text-align: center;">
-                    <div style="font-size: 0.9rem; font-weight: bold; color: #f8fafc; margin-bottom: 4px;">${word}</div>
-                    <select class="leipzig-select" data-index="${index}" style="width: 100%; background: #1e293b; color: #38bdf8; border: 1px solid #475569; border-radius: 4px; padding: 4px; font-size: 0.75rem;">
-                        ${optionsHtml}
-                    </select>
+                <div style="background: var(--surface-color, #0f172a); padding: 8px; border-radius: 6px;">
+                    <div style="font-size: 0.9rem; font-weight: bold; margin-bottom: 4px;">${word}</div>
+                    <input 
+                        type="text" 
+                        class="leipzig-input" 
+                        list="leipzig-datalist" 
+                        placeholder="e.g., buy or FOC" 
+                        style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); box-sizing: border-box;"
+                        data-index="${index}"
+                    />
                 </div>
             `;
         });
-
         document.getElementById('workshopOutputArea').style.display = 'block';
     });
 
@@ -426,7 +489,7 @@ function appendGlossingWorkshopToReader() {
             const sourceSentence = document.getElementById('workshopSourceInput').value.trim();
             const translation = document.getElementById('workshopTranslationInput').value.trim();
 
-            const selects = document.querySelectorAll('.leipzig-select');
+            const inputs = document.querySelectorAll('.leipzig-input');
             const gridBlocks = document.querySelectorAll('#workshopBlocksGrid > div');
 
             if (!sourceSentence) return;
@@ -436,11 +499,18 @@ function appendGlossingWorkshopToReader() {
 
             gridBlocks.forEach((block, index) => {
                 const word = block.querySelector('div').textContent;
-                const select = selects[index];
-                const tag = select ? select.value : '';
+                const input = inputs[index];
+                const rawValue = input ? input.value.trim() : '';
+
+                let formattedVal = '---';
+                if (rawValue) {
+                    const upper = rawValue.toUpperCase();
+                    const isTag = Object.keys(LEIPZIG_TAGS).some(tag => tag.toUpperCase() === upper);
+                    formattedVal = isTag ? upper : rawValue.toLowerCase();
+                }
 
                 tier1Words.push(word);
-                tier2Glosses.push(tag || '---');
+                tier2Glosses.push(formattedVal);
             });
 
             const formattedOutput =
@@ -502,7 +572,7 @@ function renderGrammarSubfieldFilters() {
         filterContainer = document.createElement('div');
         filterContainer.id = 'subfieldFilterContainer';
         filterContainer.style.cssText = 'display: flex; gap: 8px; flex-wrap: wrap; margin: 1.5rem auto; justify-content: center; max-width: 900px;';
-        
+
         const catalogHeader = document.querySelector('#catalog-view p') || document.querySelector('#catalog-view h1');
         if (catalogHeader && catalogHeader.parentNode) {
             catalogHeader.parentNode.insertBefore(filterContainer, catalogHeader.nextSibling);
@@ -526,7 +596,7 @@ function renderGrammarSubfieldFilters() {
     subfields.forEach((sub, index) => {
         const btn = document.createElement('button');
         btn.textContent = sub;
-        
+
         const isActive = index === 0;
         btn.style.cssText = `background: ${isActive ? '#38bdf8' : '#1e293b'}; color: ${isActive ? '#0f172a' : '#cbd5e1'}; border: 1px solid ${isActive ? '#38bdf8' : '#334155'}; padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; cursor: pointer; font-weight: 600; transition: all 0.2s;`;
 
@@ -586,7 +656,7 @@ categoryBtns.forEach((btn) => {
 function showCatalog() {
     readerView.classList.add('hidden');
     catalogView.classList.remove('hidden');
-    document.querySelector('header')?.classList.remove('hidden'); 
+    document.querySelector('header')?.classList.remove('hidden');
     window.scrollTo(0, 0);
 }
 
@@ -872,12 +942,6 @@ async function openWorkOrChapter(work) {
 
 function showPaywallModal(bookTitle) {
     const modal = document.getElementById('paywall-modal');
-    document.getElementById('paywall-book-title').innerText = bookTitle;
-    modal.classList.add('active');
-}
-
-function showPaywallModal(bookTitle) {
-    const modal = document.getElementById('paywall-modal');
     if (modal) {
         const titleEl = document.getElementById('paywall-book-title');
         if (titleEl) titleEl.innerText = bookTitle;
@@ -1070,6 +1134,53 @@ async function promptSubscriberSignIn() {
     });
 }
 
+async function loadCorpusResources(category = 'all') {
+    const booksGrid = document.getElementById('books-grid');
+    if (!booksGrid) return;
+
+    // Resolve client
+    const activeSupabase = window.supabaseClient || window.supabase || supabaseClient;
+    if (!activeSupabase || typeof activeSupabase.from !== 'function') return;
+
+    try {
+        let query = activeSupabase.from('corpus_texts').select('*');
+
+        if (category && category !== 'all') {
+            // ilike allows case-insensitive matching
+            query = query.ilike('category', `%${category.trim()}%`);
+        }
+
+        const { data: items, error } = await query;
+
+        if (error) {
+            console.error('Error fetching corpus texts:', error.message);
+            return;
+        }
+
+        if (!items || items.length === 0) {
+            return; // Retains default fallback HTML if no dynamic items exist yet
+        }
+
+        const dynamicCardsHTML = items.map(item => `
+            <div class="book-card corpus-card" data-id="${item.id}">
+                <div class="book-card-header">
+                    <h3>${item.title}</h3>
+                    <p class="author">By ${item.author || 'Unknown'}</p>
+                </div>
+                <div class="book-card-body">
+                    <span class="badge category-badge">${item.category || 'Corpus'}</span>
+                    <p class="preview-text">${(item.content || '').substring(0, 120)}...</p>
+                </div>
+            </div>
+        `).join('');
+
+        booksGrid.innerHTML += dynamicCardsHTML;
+
+    } catch (err) {
+        console.error('Failed to render corpus resources:', err);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     supabaseClient.auth.onAuthStateChange(async (event, session) => {
         if (session) {
@@ -1079,6 +1190,73 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (typeof renderCurrentChapter === 'function') {
                 renderCurrentChapter();
             }
+        }
+        if (typeof fetchWorks === 'function') {
+            fetchWorks('all');
+        }
+    });
+
+    const addResourceModal = document.getElementById('add-resource-modal');
+    const openResourceBtn = document.getElementById('open-add-resource-btn');
+    const closeResourceBtn = document.getElementById('close-resource-modal-btn');
+    const resourceForm = document.getElementById('resource-modal-form');
+
+    openResourceBtn?.addEventListener('click', async () => {
+        try {
+            const activeSupabase = window.supabaseClient || window.supabase || supabaseClient;
+
+            let session = null;
+            if (activeSupabase && activeSupabase.auth) {
+                const { data } = await activeSupabase.auth.getSession();
+                session = data?.session;
+            }
+
+            if (!session || !session.user) {
+                alert('You must be signed in to submit texts to the corpus catalog.');
+                return;
+            }
+
+            if (addResourceModal) {
+                addResourceModal.style.display = 'flex';
+            }
+        } catch (err) {
+            console.error('Error opening modal:', err);
+        }
+    });
+
+    closeResourceBtn?.addEventListener('click', () => {
+        if (addResourceModal) addResourceModal.style.display = 'none';
+    });
+
+    resourceForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const title = document.getElementById('modal-corpus-title').value;
+        const author = document.getElementById('modal-corpus-author').value;
+        const category = document.getElementById('modal-corpus-category').value;
+        const content = document.getElementById('modal-corpus-content').value;
+        const description = document.getElementById('modal-corpus-description')?.value || '';
+        const coverUrl = document.getElementById('modal-corpus-cover')?.value || '';
+
+        let activeSupabase = window.supabaseClient || supabaseClient;
+
+        if (!activeSupabase || typeof activeSupabase.from !== 'function') {
+            if (window.supabase && typeof window.supabase.createClient === 'function') {
+                activeSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            }
+        }
+
+        try {
+            await handleTextSubmission(activeSupabase, title, author, category, content, description, coverUrl);
+
+            alert('Thank you! Your submission has been normalized and sent for admin review. It will appear in the library once approved.');
+
+            resourceForm.reset();
+            if (addResourceModal) addResourceModal.style.display = 'none';
+
+        } catch (err) {
+            console.error('Modal submission error:', err);
+            alert('Failed to save resource. Check console for details.');
         }
     });
 
