@@ -1203,8 +1203,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     openResourceBtn?.addEventListener('click', async () => {
         try {
-            const activeSupabase = window.supabaseClient || window.supabase || supabaseClient;
-
+            const activeSupabase = window.supabaseClient || supabaseClient;
             let session = null;
             if (activeSupabase && activeSupabase.auth) {
                 const { data } = await activeSupabase.auth.getSession();
