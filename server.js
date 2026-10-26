@@ -6,23 +6,19 @@ require('dotenv').config();
 
 const app = express();
 
-// Paystack requires the raw body or JSON body to verify signatures
 app.use(express.json());
 app.use(cors());
 
-// Initialize Supabase Admin Client (Uses Service Role key to bypass RLS safely on backend)
 const supabaseAdmin = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Paystack Webhook Endpoint
 app.post('/webhook/paystack', async (req, res) => {
     try {
         const paystackSignature = req.headers['x-paystack-signature'];
         const secretKey = process.env.PAYSTACK_SECRET_KEY;
 
-        // 1. Verify that the request actually came from Paystack for security
         const hash = crypto.createHmac('sha512', secretKey)
                             .update(JSON.stringify(req.body))
                             .digest('hex');
@@ -34,7 +30,6 @@ app.post('/webhook/paystack', async (req, res) => {
 
         const event = req.body;
 
-        // 2. Check if payment was successful
         if (event.event === 'charge.success') {
             const customerEmail = event.data.customer.email.trim().toLowerCase();
             console.log(`💰 Payment confirmed via webhook for: ${customerEmail}`);
@@ -64,7 +59,6 @@ app.post('/webhook/paystack', async (req, res) => {
                 targetUser = createdUser.user;
             }
 
-            // 4. Securely upgrade their profile to premium
             const { error: updateError } = await supabaseAdmin
                 .from('profiles')
                 .update({ is_subscribed: true })

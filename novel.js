@@ -31,7 +31,7 @@ export async function handleTextSubmission(
             access_type: accessType,
             price: price,
             author_subaccount_code: authorSubaccount.trim(),
-            status: 'pending' 
+            status: 'pending'
         });
 
         console.log('Successfully saved to GleanWord corpus:', savedRecord);
@@ -71,51 +71,36 @@ const fontDecreaseBtn = document.getElementById('font-decrease');
 const fontSizeLabel = document.getElementById('font-size-label');
 
 async function fetchWorks(category = 'all') {
+    const booksGrid = document.getElementById('books-grid');
+    if (!booksGrid) return;
+    
     booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">Loading resources...</p>`;
 
     try {
-        let worksQuery = supabaseClient.from('works').select('*');
-        if (category !== 'all') {
-            worksQuery = worksQuery.eq('category', category);
+        let query = supabaseClient.from('works').select('*').order('created_at', { ascending: false });
+        
+        if (category && category !== 'all') {
+            query = query.eq('category', category);
         }
 
-        let corpusQuery = supabaseClient.from('corpus_texts')
-            .select('*')
-            .eq('status', 'approved');
-        if (category !== 'all') {
-            corpusQuery = corpusQuery.ilike('category', `%${category}%`);
+        const { data: works, error } = await query;
+
+        if (error) {
+            console.error('Error fetching works:', error.message);
+            booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">Failed to load books.</p>`;
+            return;
         }
 
-        const [{ data: works, error: worksErr }, { data: corpus, error: corpusErr }] = await Promise.all([
-            worksQuery,
-            corpusQuery
-        ]);
-
-        if (worksErr) console.error('Error fetching works:', worksErr);
-        if (corpusErr) console.error('Error fetching corpus:', corpusErr);
-
-        const formattedCorpus = (corpus || []).map(item => ({
-            id: item.id,
-            title: item.title,
-            author: item.author || 'Ann Alani',
-            description: item.content ? item.content.substring(0, 110) + '...' : 'User submitted Yorùbá corpus resource.',
-            category: item.category || 'grammar',
-            cover_url: null,
-            content: item.content,
-            isCorpusText: true
-        }));
-
-        const allWorks = [...(works || []), ...formattedCorpus];
-
-        if (allWorks.length === 0) {
+        if (!works || works.length === 0) {
             booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">No resources found for this category.</p>`;
             return;
         }
 
-        renderBooksGrid(allWorks);
+        // Pass directly to your robust renderBooksGrid function
+        renderBooksGrid(works);
 
     } catch (err) {
-        console.error('Failed to load works and corpus:', err);
+        console.error('Failed to load works:', err);
         booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">Failed to load books.</p>`;
     }
 }
@@ -1063,19 +1048,6 @@ menuToggleBtn?.addEventListener('click', openDrawer);
 closeDrawerBtn?.addEventListener('click', closeDrawer);
 sidebarOverlay?.addEventListener('click', closeDrawer);
 
-const addResourceBtn = document.getElementById('open-add-resource-btn');
-if (addResourceBtn) {
-    addResourceBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        closeDrawer(); // Automatically closes the drawer menu
-        
-        const addResourceModal = document.getElementById('add-resource-modal');
-        if (addResourceModal) {
-            addResourceModal.style.display = 'flex'; // Matches your overlay display style
-        }
-    });
-}
-
 let edgeStartX = 0;
 document.addEventListener('touchstart', (e) => {
     edgeStartX = e.touches[0].clientX;
@@ -1183,7 +1155,7 @@ async function promptSubscriberSignIn() {
     showEmailModal("Sign In", "Enter your email address to receive a 6-digit access code:", async (email) => {
         if (email && email.includes('@')) {
             const cleanEmail = email.trim().toLowerCase();
-            currentPendingEmail = cleanEmail; 
+            currentPendingEmail = cleanEmail;
 
             const { error } = await supabaseClient.auth.signInWithOtp({
                 email: cleanEmail,
@@ -1199,51 +1171,6 @@ async function promptSubscriberSignIn() {
             alert("Please enter a valid email address.");
         }
     });
-}
-
-async function loadCorpusResources(category = 'all') {
-    const booksGrid = document.getElementById('books-grid');
-    if (!booksGrid) return;
-
-    const activeSupabase = window.supabaseClient || window.supabase || supabaseClient;
-    if (!activeSupabase || typeof activeSupabase.from !== 'function') return;
-
-    try {
-        let query = activeSupabase.from('corpus_texts').select('*');
-
-        if (category && category !== 'all') {
-            query = query.ilike('category', `%${category.trim()}%`);
-        }
-
-        const { data: items, error } = await query;
-
-        if (error) {
-            console.error('Error fetching corpus texts:', error.message);
-            return;
-        }
-
-        if (!items || items.length === 0) {
-            return; 
-        }
-
-        const dynamicCardsHTML = items.map(item => `
-            <div class="book-card corpus-card" data-id="${item.id}">
-                <div class="book-card-header">
-                    <h3>${item.title}</h3>
-                    <p class="author">By ${item.author || 'Unknown'}</p>
-                </div>
-                <div class="book-card-body">
-                    <span class="badge category-badge">${item.category || 'Corpus'}</span>
-                    <p class="preview-text">${(item.content || '').substring(0, 120)}...</p>
-                </div>
-            </div>
-        `).join('');
-
-        booksGrid.innerHTML += dynamicCardsHTML;
-
-    } catch (err) {
-        console.error('Failed to render corpus resources:', err);
-    }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -1266,8 +1193,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const closeResourceBtn = document.getElementById('close-resource-modal-btn');
     const resourceForm = document.getElementById('resource-modal-form');
 
-    openResourceBtn?.addEventListener('click', async () => {
-        try {
+    openResourceBtn?.addEventListener('click', async (e) => {
+        e.preventDefault();
+
+        if (typeof closeDrawer === 'function') {
+            closeDrawer();
+        } try {
             const activeSupabase = window.supabaseClient || supabaseClient;
             let session = null;
             if (activeSupabase && activeSupabase.auth) {
@@ -1848,7 +1779,7 @@ if (helpSupportBtn) {
 }
 
 async function fetchResearchGuides() {
-    const researchGrid = document.getElementById('researchGrid'); 
+    const researchGrid = document.getElementById('researchGrid');
     if (!researchGrid) return;
 
     researchGrid.innerHTML = '<p class="loading-text">Loading academic guides...</p>';
@@ -1889,7 +1820,7 @@ async function fetchResearchGuides() {
 }
 
 function openResearchReader(guide) {
-    const readerContainer = document.getElementById('readerView'); 
+    const readerContainer = document.getElementById('readerView');
     if (!readerContainer) return;
 
     const isSubscribed = window.currentUserSubscribed || false;
@@ -1970,7 +1901,7 @@ async function triggerIndividualPurchase(work) {
         email: userEmail,
         amount: priceInKobo,
         currency: 'NGN',
-        subaccount: work.author_subaccount_code || '', 
+        subaccount: work.author_subaccount_code || '',
         metadata: {
             corpus_id: work.id,
             book_title: work.title,
@@ -1994,7 +1925,7 @@ async function triggerIndividualPurchase(work) {
                                 user_id: session.user.id,
                                 corpus_id: work.id,
                                 reference: response.reference,
-                                amount_paid: priceInNaira 
+                                amount_paid: priceInNaira
                             }
                         ]);
 
