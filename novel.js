@@ -1063,6 +1063,19 @@ menuToggleBtn?.addEventListener('click', openDrawer);
 closeDrawerBtn?.addEventListener('click', closeDrawer);
 sidebarOverlay?.addEventListener('click', closeDrawer);
 
+const addResourceBtn = document.getElementById('open-add-resource-btn');
+if (addResourceBtn) {
+    addResourceBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        closeDrawer(); // Automatically closes the drawer menu
+        
+        const addResourceModal = document.getElementById('add-resource-modal');
+        if (addResourceModal) {
+            addResourceModal.style.display = 'flex'; // Matches your overlay display style
+        }
+    });
+}
+
 let edgeStartX = 0;
 document.addEventListener('touchstart', (e) => {
     edgeStartX = e.touches[0].clientX;
@@ -2005,3 +2018,4 @@ async function triggerIndividualPurchase(work) {
 
     handler.openIframe();
 }
+
