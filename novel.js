@@ -1897,7 +1897,7 @@ async function triggerIndividualPurchase(work) {
     }
 
    const handler = PaystackPop.setup({
-        key: 'pk_live_d7daec8fa684943a0f624f8a1d61f9b3695b76b',
+        key: 'pk_live_d7daec8fa68494d3a0f624f8a1d61f9b3695b76b',
         email: userEmail,
         amount: priceInKobo,
         currency: 'NGN',
