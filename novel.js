@@ -1,7 +1,18 @@
 import { normalizeYorubaText } from './utils/normalizeYoruba.js';
 import { saveCorpusText } from './services/corpusService.js';
 
-export async function handleTextSubmission(supabaseClient, rawTitle, rawAuthor, rawCategory, rawContent, rawDescription = '', rawCoverUrl = '') {
+export async function handleTextSubmission(
+    supabaseClient,
+    rawTitle,
+    rawAuthor,
+    rawCategory,
+    rawContent,
+    rawDescription = '',
+    rawCoverUrl = '',
+    accessType = 'free',
+    price = 0,
+    authorSubaccount = ''
+) {
     try {
         const title = normalizeYorubaText(rawTitle);
         const author = normalizeYorubaText(rawAuthor);
@@ -17,7 +28,10 @@ export async function handleTextSubmission(supabaseClient, rawTitle, rawAuthor, 
             category,
             description,
             cover_url,
-            status: 'pending' // Moderation queue default
+            access_type: accessType,
+            price: price,
+            author_subaccount_code: authorSubaccount.trim(),
+            status: 'pending' 
         });
 
         console.log('Successfully saved to GleanWord corpus:', savedRecord);
@@ -60,13 +74,11 @@ async function fetchWorks(category = 'all') {
     booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">Loading resources...</p>`;
 
     try {
-        // 1. Fetch works
         let worksQuery = supabaseClient.from('works').select('*');
         if (category !== 'all') {
             worksQuery = worksQuery.eq('category', category);
         }
 
-        // 2. Fetch corpus texts
         let corpusQuery = supabaseClient.from('corpus_texts')
             .select('*')
             .eq('status', 'approved');
@@ -104,36 +116,85 @@ async function fetchWorks(category = 'all') {
 
     } catch (err) {
         console.error('Failed to load works and corpus:', err);
-        booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">Error loading catalog.</p>`;
+        booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">Failed to load books.</p>`;
     }
 }
 
-function renderBooksGrid(works) {
+async function renderBooksGrid(works) {
     booksGrid.innerHTML = '';
+
+    const activeSupabase = window.supabaseClient || supabaseClient;
+    const { data: { session } } = await activeSupabase.auth.getSession();
+
+    let userPurchases = [];
+    if (session?.user) {
+        const { data } = await activeSupabase
+            .from('user_purchases')
+            .select('corpus_id')
+            .eq('user_id', session.user.id);
+
+        userPurchases = data ? data.map(p => p.corpus_id) : [];
+    }
 
     works.forEach((work) => {
         const card = document.createElement('article');
         card.className = 'book-card';
-
-        card.setAttribute('data-subfield', work.subfield ? work.subfield.trim() : '');
-        card.onclick = () => openReaderForWork(work);
+        card.setAttribute('data-subfield', work.subfield ? work.subfield.trim() : 'general');
 
         const placeholderImg = '/path/to/your/default-placeholder.png';
         const imageSource = work.cover_url || placeholderImg;
         const descriptionText = work.description || 'Explore this research guide...';
-        const authorName = work.author || 'Ann Alani'; // Pulls author from DB or defaults nicely
+        const authorName = work.author || 'Ann Alani';
+
+        const isStandalone = work.access_type === 'purchase';
+        const isUserOwned = userPurchases.includes(work.id);
+        const isOfficialWork = !work.access_type || work.access_type === 'subscription';
+
+        let badgeHTML = '';
+        let buttonActionHTML = '';
+
+        if (isStandalone) {
+            if (isUserOwned) {
+                badgeHTML = `<span class="badge owned" style="background:#2e7d32; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7rem; font-weight:bold;">OWNED</span>`;
+                buttonActionHTML = `<button class="btn-card-action" style="margin-top:6px; padding:4px 10px; font-size:0.75rem; background:#38bdf8; color:#0f172a; border:none; border-radius:4px; cursor:pointer;">Read Book</button>`;
+                card.onclick = () => openReaderForWork(work);
+            } else {
+                const formattedPrice = work.price ? work.price.toLocaleString() : '1,500';
+                badgeHTML = `<span class="badge paid" style="background:#e11d48; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7rem; font-weight:bold;">₦${formattedPrice}</span>`;
+                buttonActionHTML = `<button class="btn-card-action btn-buy" style="margin-top:6px; padding:4px 10px; font-size:0.75rem; background:#f59e0b; color:#0f172a; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">Buy Work — ₦${formattedPrice}</button>`;
+
+                card.onclick = (e) => {
+                    e.stopPropagation();
+                    triggerIndividualPurchase(work);
+                };
+            }
+        } else if (isOfficialWork) {
+            badgeHTML = `<span class="badge pass" style="background:#6366f1; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7rem; font-weight:bold;">GLEANWORD PASS</span>`;
+            buttonActionHTML = `<button class="btn-card-action" style="margin-top:6px; padding:4px 10px; font-size:0.75rem; background:#38bdf8; color:#0f172a; border:none; border-radius:4px; cursor:pointer;">Read Preview</button>`;
+            card.onclick = () => openReaderForWork(work);
+        } else {
+            badgeHTML = `<span class="badge free" style="background:#10b981; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7rem; font-weight:bold;">FREE CORPUS</span>`;
+            buttonActionHTML = `<button class="btn-card-action" style="margin-top:6px; padding:4px 10px; font-size:0.75rem; background:#38bdf8; color:#0f172a; border:none; border-radius:4px; cursor:pointer;">Read Entry</button>`;
+            card.onclick = () => openReaderForWork(work);
+        }
 
         card.innerHTML = `
             <!-- Compact cover thumbnail on the left -->
-            <div style="flex-shrink: 0; width: 85px; aspect-ratio: 2/3; overflow: hidden; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
-                <img src="${imageSource}" alt="${escapeHtml(work.title)}" style="width: 100%; height: 100%; object-fit: cover;" />
+            <div style="flex-shrink: 0; width: 85px; aspect-ratio: 2/3; overflow: hidden; position: relative; border-radius: 4px;">
+                <img src="${imageSource}" alt="${escapeHtml(work.title)}" style="width: 100%; height: 100%; object-fit: cover;">
             </div>
-            
-            <!-- Title, Author, and Description stacked on the right -->
-            <div style="flex-grow: 1; display: flex; flex-direction: column; text-align: left; min-width: 0;">
-                <h4 style="margin: 0 0 2px 0; color: #f8fafc; font-size: 0.95rem; font-weight: 600; line-height: 1.3;">${escapeHtml(work.title)}</h4>
-                <span style="font-size: 0.75rem; color: #38bdf8; font-weight: 500; margin-bottom: 6px; display: block;">By ${escapeHtml(authorName)}</span>
-                <p style="font-size: 0.78rem; color: #94a3b8; margin: 0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(descriptionText)}</p>
+
+            <!-- Title, Author, Badges, and Description on the right -->
+            <div style="flex-grow: 1; display: flex; flex-direction: column; text-align: left; padding-left: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <h4 style="margin: 0; color: #f8fafc; font-size: 0.95rem; font-weight: 600;">${escapeHtml(work.title)}</h4>
+                    ${badgeHTML}
+                </div>
+                <span style="font-size: 0.75rem; color: #38bdf8; font-weight: 500;">By ${escapeHtml(authorName)}</span>
+                <p style="font-size: 0.78rem; color: #94a3b8; margin: 4px 0 0 0; line-height: 1.3;">${escapeHtml(descriptionText)}</p>
+                <div>
+                    ${buttonActionHTML}
+                </div>
             </div>
         `;
 
@@ -386,17 +447,14 @@ function renderGlossInputs(tokens) {
     });
 }
 
-// Helper to format output based on whether it matches your LEIPZIG_TAGS keys
 function getFormattedGloss(inputValue) {
     const trimmed = inputValue.trim();
     if (!trimmed) return '***';
 
     const upper = trimmed.toUpperCase();
 
-    // Check if the typed value matches any key in your LEIPZIG_TAGS object
     const isGrammaticalTag = Object.keys(LEIPZIG_TAGS).some(tag => tag.toUpperCase() === upper);
 
-    // Capitalize if it's a grammatical tag, keep lowercase if it's a direct translation
     return isGrammaticalTag ? upper : trimmed.toLowerCase();
 }
 
@@ -404,7 +462,6 @@ function appendGlossingWorkshopToReader() {
     const readerBody = document.getElementById('reader-body');
     if (!readerBody) return;
 
-    // Remove existing workshop container if present to avoid duplication
     const existing = readerBody.querySelector('.glossing-workshop-container');
     if (existing) existing.remove();
 
@@ -452,7 +509,6 @@ function appendGlossingWorkshopToReader() {
         const grid = document.getElementById('workshopBlocksGrid');
         grid.innerHTML = '';
 
-        // 1. Create shared datalist element if it doesn't exist
         let datalist = document.getElementById('leipzig-datalist');
         if (!datalist) {
             datalist = document.createElement('datalist');
@@ -460,7 +516,6 @@ function appendGlossingWorkshopToReader() {
             document.body.appendChild(datalist);
         }
 
-        // 2. Populate datalist options from LEIPZIG_TAGS
         datalist.innerHTML = Object.entries(LEIPZIG_TAGS).map(([tag, desc]) =>
             `<option value="${tag}">${tag}: ${desc}</option>`
         ).join('');
@@ -518,7 +573,6 @@ function appendGlossingWorkshopToReader() {
 ${tier2Glosses.join('\t')}
 '${translation || 'No translation provided'}'`;
 
-            // Copy to system clipboard
             navigator.clipboard.writeText(formattedOutput).then(() => {
                 const originalText = exportBtn.textContent;
 
@@ -1116,7 +1170,7 @@ async function promptSubscriberSignIn() {
     showEmailModal("Sign In", "Enter your email address to receive a 6-digit access code:", async (email) => {
         if (email && email.includes('@')) {
             const cleanEmail = email.trim().toLowerCase();
-            currentPendingEmail = cleanEmail; // <--- THIS WAS MISSING!
+            currentPendingEmail = cleanEmail; 
 
             const { error } = await supabaseClient.auth.signInWithOtp({
                 email: cleanEmail,
@@ -1138,7 +1192,6 @@ async function loadCorpusResources(category = 'all') {
     const booksGrid = document.getElementById('books-grid');
     if (!booksGrid) return;
 
-    // Resolve client
     const activeSupabase = window.supabaseClient || window.supabase || supabaseClient;
     if (!activeSupabase || typeof activeSupabase.from !== 'function') return;
 
@@ -1146,7 +1199,6 @@ async function loadCorpusResources(category = 'all') {
         let query = activeSupabase.from('corpus_texts').select('*');
 
         if (category && category !== 'all') {
-            // ilike allows case-insensitive matching
             query = query.ilike('category', `%${category.trim()}%`);
         }
 
@@ -1158,7 +1210,7 @@ async function loadCorpusResources(category = 'all') {
         }
 
         if (!items || items.length === 0) {
-            return; // Retains default fallback HTML if no dynamic items exist yet
+            return; 
         }
 
         const dynamicCardsHTML = items.map(item => `
@@ -1237,6 +1289,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const description = document.getElementById('modal-corpus-description')?.value || '';
         const coverUrl = document.getElementById('modal-corpus-cover')?.value || '';
 
+        const accessType = document.getElementById('modal-corpus-access')?.value || 'free';
+        const price = parseFloat(document.getElementById('modal-corpus-price')?.value) || 0;
+        const authorSubaccount = document.getElementById('modal-corpus-subaccount')?.value || '';
         let activeSupabase = window.supabaseClient || supabaseClient;
 
         if (!activeSupabase || typeof activeSupabase.from !== 'function') {
@@ -1246,7 +1301,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
-            await handleTextSubmission(activeSupabase, title, author, category, content, description, coverUrl);
+            await handleTextSubmission(
+                activeSupabase,
+                title,
+                author,
+                category,
+                content,
+                description,
+                coverUrl,
+                accessType,
+                price,
+                authorSubaccount
+            );
 
             alert('Thank you! Your submission has been normalized and sent for admin review. It will appear in the library once approved.');
 
@@ -1603,7 +1669,6 @@ function toggleBookmark(workId, title, category, chapterIndex = 0) {
         savedList[existingIndex].addedAt = new Date().toISOString();
         alert(`Reading list updated for "${title}"! 🔖`);
     } else {
-        // Add new entry to the list
         savedList.push({
             id: workId,
             title: title,
@@ -1620,7 +1685,6 @@ function toggleBookmark(workId, title, category, chapterIndex = 0) {
 let currentFontFamily = localStorage.getItem('gleanword_font_family') || 'sans-serif';
 let currentLineHeight = localStorage.getItem('gleanword_line_height') || '1.6';
 
-// Apply stored preferences on page load
 function applyReaderPreferences() {
     const readerBody = document.getElementById('reader-body');
     if (readerBody) {
@@ -1770,14 +1834,12 @@ if (helpSupportBtn) {
     });
 }
 
-// Function to fetch and display research guides in a catalog grid
 async function fetchResearchGuides() {
-    const researchGrid = document.getElementById('researchGrid'); // Make sure you have a container with this ID in your HTML
+    const researchGrid = document.getElementById('researchGrid'); 
     if (!researchGrid) return;
 
     researchGrid.innerHTML = '<p class="loading-text">Loading academic guides...</p>';
 
-    // Fetch guides from Supabase
     const { data: guides, error } = await supabaseClient
         .from('research_guides')
         .select('*')
@@ -1805,7 +1867,6 @@ async function fetchResearchGuides() {
             <button class="read-guide-btn" data-id="${guide.id}">Read Guide</button>
         `;
 
-        // Click event to open the reader view
         card.querySelector('.read-guide-btn').addEventListener('click', () => {
             openResearchReader(guide);
         });
@@ -1814,18 +1875,15 @@ async function fetchResearchGuides() {
     });
 }
 
-// Function to handle the reader view and Paywall trigger
 function openResearchReader(guide) {
-    const readerContainer = document.getElementById('readerView'); // Your main reader container
+    const readerContainer = document.getElementById('readerView'); 
     if (!readerContainer) return;
 
-    // Assume you have a global or state variable tracking user subscription status (e.g., window.currentUserSubscribed)
     const isSubscribed = window.currentUserSubscribed || false;
 
     let contentToDisplay = '';
 
     if (guide.is_premium && !isSubscribed) {
-        // Show free preview + Paystack Subscription Trigger Wall
         contentToDisplay = `
             <div class="research-reader-content">
                 <span class="category-tag">${guide.category}</span>
@@ -1844,7 +1902,6 @@ function openResearchReader(guide) {
             </div>
         `;
     } else {
-        // Show full comprehensive guide for subscribed users or free guides
         contentToDisplay = `
             <div class="research-reader-content">
                 <span class="category-tag">${guide.category}</span>
@@ -1873,3 +1930,78 @@ function openResearchReader(guide) {
 document.addEventListener('DOMContentLoaded', () => {
     fetchResearchGuides();
 });
+
+async function triggerIndividualPurchase(work) {
+    const activeSupabase = window.supabaseClient || supabaseClient;
+    const { data: { session } } = await activeSupabase.auth.getSession();
+
+    const userEmail = session?.user?.email || prompt('Enter your email address to complete your purchase and create your account:');
+    if (!userEmail) return;
+
+    const priceInNaira = work.price;
+
+    if (!priceInNaira || priceInNaira <= 0) {
+        alert('Invalid price set for this book. Please contact support or the author.');
+        return;
+    }
+
+    const priceInKobo = priceInNaira * 100;
+
+    if (typeof PaystackPop === 'undefined') {
+        alert('Paystack SDK is not loaded. Please check your internet connection or script tags.');
+        return;
+    }
+
+    const handler = PaystackPop.setup({
+        key: 'pk_live_d7daec8fa68494d3a0f624f8a1d61f9b3695b76b',
+        email: userEmail,
+        amount: priceInKobo,
+        currency: 'NGN',
+        subaccount: work.author_subaccount_code || '', 
+        metadata: {
+            corpus_id: work.id,
+            book_title: work.title,
+            custom_fields: [
+                {
+                    display_name: "Book Title",
+                    variable_name: "book_title",
+                    value: work.title
+                }
+            ]
+        },
+        callback: async function (response) {
+            console.log('Payment complete! Reference: ' + response.reference);
+
+            try {
+                if (session?.user) {
+                    const { error } = await activeSupabase
+                        .from('user_purchases')
+                        .insert([
+                            {
+                                user_id: session.user.id,
+                                corpus_id: work.id,
+                                reference: response.reference,
+                                amount_paid: priceInNaira 
+                            }
+                        ]);
+
+                    if (error) throw error;
+                    alert('Payment successful! You now have permanent access to this work.');
+                } else {
+                    alert('Payment successful! Your purchase has been recorded. Please sign in with ' + userEmail + ' to access your book.');
+                }
+
+                fetchWorks(activeCategory);
+
+            } catch (err) {
+                console.error('Failed to log purchase in database:', err);
+                alert('Payment was successful, but we encountered an error updating your library. Please contact support with reference: ' + response.reference);
+            }
+        },
+        onClose: function () {
+            console.log('Payment window closed by user.');
+        }
+    });
+
+    handler.openIframe();
+}

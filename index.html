@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>GleanWord - Novels, Poetry & Grammar</title>
-  <link rel="stylesheet" href="novel.css?v=28">
+  <link rel="stylesheet" href="novel.css?v=29">
   <link rel="manifest" href="manifest.json" />
 </head>
 
@@ -143,7 +143,6 @@
     </div>
   </div>
 
-  <!-- Add Resource Modal -->
   <div id="add-resource-modal" class="paywall-overlay"
     style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center;">
     <div
@@ -199,6 +198,30 @@
             style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
         </div>
 
+        <div style="display: flex; gap: 10px; margin-top: 10px;">
+          <div style="flex: 1;">
+            <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Access Type</label>
+            <select id="modal-corpus-access"
+              style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+              <option value="free">Free Corpus / Open Access</option>
+              <option value="purchase">Paid Work (Standalone Purchase)</option>
+            </select>
+          </div>
+
+          <div style="flex: 1;">
+            <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Price (₦)</label>
+            <input type="number" id="modal-corpus-price" placeholder="1500" min="0" step="100"
+              style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+          </div>
+        </div>
+
+        <div style="margin-top: 10px;">
+          <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Paystack Subaccount
+            Code</label>
+          <input type="text" id="modal-corpus-subaccount" placeholder="ACCT_xxxxxxxxxx (Leave empty if free)"
+            style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        </div>
+
         <button type="submit"
           style="padding: 10px; background: #4f46e5; color: white; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; margin-top: 8px;">Save
           to Corpus</button>
@@ -208,7 +231,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://js.paystack.co/v1/inline.js"></script>
-  <script type="module" src="./novel.js?v=28"></script>
+  <script type="module" src="./novel.js?v=29"></script>
 </body>
 
 </html>
