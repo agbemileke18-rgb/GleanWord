@@ -1896,8 +1896,8 @@ async function triggerIndividualPurchase(work) {
         return;
     }
 
-    const handler = PaystackPop.setup({
-        key: 'pk_live_d7daec8fa68494d3a0f624f8a1d61f9b3695b76b',
+   const handler = PaystackPop.setup({
+        key: 'pk_live_d7daec8fa684943a0f624f8a1d61f9b3695b76b',
         email: userEmail,
         amount: priceInKobo,
         currency: 'NGN',
@@ -1905,7 +1905,7 @@ async function triggerIndividualPurchase(work) {
         metadata: {
             corpus_id: work.id,
             book_title: work.title,
-            custom_fields: [
+             custom_fields: [
                 {
                     display_name: "Book Title",
                     variable_name: "book_title",
@@ -1913,40 +1913,37 @@ async function triggerIndividualPurchase(work) {
                 }
             ]
         },
-        callback: async function (response) {
-            console.log('Payment complete! Reference: ' + response.reference);
-
-            try {
-                if (session?.user) {
-                    const { error } = await activeSupabase
-                        .from('user_purchases')
-                        .insert([
-                            {
+        callback: function (response) {
+            (async () => {
+                console.log('Payment complete! Reference: ' + response.reference);
+                try {
+                    if (session?.user) {
+                        const { error } = await activeSupabase
+                            .from('user_purchases')
+                            .insert([{
                                 user_id: session.user.id,
                                 corpus_id: work.id,
                                 reference: response.reference,
                                 amount_paid: priceInNaira
-                            }
-                        ]);
+                            }]);
 
-                    if (error) throw error;
-                    alert('Payment successful! You now have permanent access to this work.');
-                } else {
-                    alert('Payment successful! Your purchase has been recorded. Please sign in with ' + userEmail + ' to access your book.');
+                        if (error) throw error;
+                        alert('Payment successful! You now have permanent access to this work.');
+                    } else {
+                        alert('Payment successful! Your purchase has been recorded.');
+                    }
+
+                    fetchWorks(activeCategory);
+                } catch (err) {
+                    console.error('Failed to log purchase in database:', err);
+                    alert('Payment was successful, but we encountered an error updating your access.');
                 }
-
-                fetchWorks(activeCategory);
-
-            } catch (err) {
-                console.error('Failed to log purchase in database:', err);
-                alert('Payment was successful, but we encountered an error updating your library. Please contact support with reference: ' + response.reference);
-            }
+            })();
         },
         onClose: function () {
             console.log('Payment window closed by user.');
         }
     });
 
-    handler.openIframe();
+    handler.openIframe(); // <-- Keep this here!
 }
-
