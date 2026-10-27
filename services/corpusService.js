@@ -1,7 +1,7 @@
 import { normalizeYorubaText } from '../utils/normalizeYoruba.js';
 
 export async function saveCorpusText(supabaseClient, {
-    title, author, content, category, metadata, description = '', cover_url = '', access_type = 'free', price = 0, author_subaccount_code = '', status = 'pending', language_code = 'yo'
+    title, author, content, category, metadata, description = '', cover_url = '', access_type = 'free', price = 0, status = 'pending', language_code = 'yo'
 }) {
     const cleanTitle = normalizeYorubaText(title);
     const cleanAuthor = normalizeYorubaText(author);
@@ -24,7 +24,6 @@ export async function saveCorpusText(supabaseClient, {
             cover_url: cover_url,
             access_type: access_type,
             price: price,
-            author_subaccount_code: author_subaccount_code,
             status: status,
             language_code: language_code || 'yo',
             metadata: metadata,

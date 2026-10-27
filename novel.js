@@ -2006,6 +2006,13 @@ export function closeBankOnboardingModal() {
     }
 }
 
+export function openBookUploadModal() {
+    const bookModal = document.getElementById('book-upload-modal');
+    if (bookModal) {
+        bookModal.style.display = 'flex';
+    }
+}
+
 document.getElementById('close-bank-modal-btn')?.addEventListener('click', () => {
     closeBankOnboardingModal();
 });
