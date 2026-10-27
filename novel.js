@@ -1952,7 +1952,7 @@ async function triggerIndividualPurchase(work) {
 async function submitBankDetails(userId, userEmail, settlementBank, accountNumber, businessName) {
     try {
 
-        const response = await fetch('/api/create-subaccount', {
+        const response = await fetch('https://gleanword.com/api/create-subaccount', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
