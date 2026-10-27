@@ -20,8 +20,8 @@ app.post('/webhook/paystack', async (req, res) => {
         const secretKey = process.env.PAYSTACK_SECRET_KEY;
 
         const hash = crypto.createHmac('sha512', secretKey)
-                            .update(JSON.stringify(req.body))
-                            .digest('hex');
+            .update(JSON.stringify(req.body))
+            .digest('hex');
 
         if (hash !== paystackSignature) {
             console.warn("⚠️ Unauthorized webhook signature attempt blocked.");
@@ -46,17 +46,40 @@ app.post('/webhook/paystack', async (req, res) => {
 
             if (!targetUser) {
                 console.log(`👤 User ${customerEmail} not found in Supabase Auth. Auto-creating account...`);
-                
+
                 const { data: createdUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
                     email: customerEmail,
                     email_confirm: true
                 });
-                
+
                 if (createError) {
                     console.error("❌ Failed to auto-create user:", createError);
                     return res.status(500).send('User creation failed');
                 }
                 targetUser = createdUser.user;
+            }
+
+            const metadata = event.data.metadata || {};
+            if (metadata.corpus_id) {
+                const corpusId = metadata.corpus_id;
+                const amountPaid = event.data.amount / 100;
+                const reference = event.data.reference;
+
+                const { error: purchaseError } = await supabaseAdmin
+                    .from('user_purchases')
+                    .upsert([{
+                        user_id: targetUser.id,
+                        corpus_id: corpusId,
+                        reference: reference,
+                        amount_paid: amountPaid
+                    }], { onConflict: 'reference' });
+
+                if (purchaseError) {
+                    console.error("❌ Failed to log book purchase:", purchaseError);
+                    return res.status(500).send('Book purchase logging failed');
+                }
+
+                console.log(`📚 Success! Book ${corpusId} unlocked for user ${targetUser.id}`);
             }
 
             const { error: updateError } = await supabaseAdmin

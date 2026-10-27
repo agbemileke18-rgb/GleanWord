@@ -1913,48 +1913,21 @@ async function triggerIndividualPurchase(work) {
                 }
             ]
         },
+
         callback: function (response) {
-            (async () => {
-                console.log('Payment complete! Reference:', response.reference);
+            console.log('Payment complete! Reference:', response.reference);
 
-                try {
-                    // Fetch the session fresh to guarantee we have the user ID
-                    const { data: { session: currentSession }, error: sessionError } = await activeSupabase.auth.getSession();
+            alert('Payment successful! Processing your access...');
 
-                    if (sessionError || !currentSession?.user) {
-                        console.error('Session missing in callback:', sessionError);
-                        alert('Payment was successful, but you appear to be logged out. Please log back in to claim your book.');
-                        return;
-                    }
-
-                    const userId = currentSession.user.id;
-                    console.log('Inserting purchase for user:', userId, 'and corpus:', work.id);
-
-                    const { error: insertError } = await activeSupabase
-                        .from('user_purchases')
-                        .insert([{
-                            user_id: userId,
-                            corpus_id: work.id,
-                            reference: response.reference,
-                            amount_paid: priceInNaira
-                        }]);
-
-                    if (insertError)
-                        throw insertError;
-
-                    alert('Payment successful! You now have permanent access to this work.');
-                    fetchWorks(activeCategory);
-
-                } catch (err) {
-                    console.error('Failed to log purchase in database:', err);
-                    alert('Payment was successful, but we encountered an error updating your access. Check console for details.');
-                }
-            })();
+            setTimeout(() => {
+                fetchWorks(activeCategory);
+            }, 2000); 
         },
+
         onClose: function () {
             console.log('Payment window closed by user.');
         }
     });
 
-    handler.openIframe(); // <-- Keep this here!
+    handler.openIframe(); 
 }
