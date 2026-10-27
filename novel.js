@@ -73,12 +73,12 @@ const fontSizeLabel = document.getElementById('font-size-label');
 async function fetchWorks(category = 'all') {
     const booksGrid = document.getElementById('books-grid');
     if (!booksGrid) return;
-    
+
     booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">Loading resources...</p>`;
 
     try {
         let query = supabaseClient.from('works').select('*').order('created_at', { ascending: false });
-        
+
         if (category && category !== 'all') {
             query = query.eq('category', category);
         }
@@ -1896,7 +1896,7 @@ async function triggerIndividualPurchase(work) {
         return;
     }
 
-   const handler = PaystackPop.setup({
+    const handler = PaystackPop.setup({
         key: 'pk_live_d7daec8fa68494d3a0f624f8a1d61f9b3695b76b',
         email: userEmail,
         amount: priceInKobo,
@@ -1905,7 +1905,7 @@ async function triggerIndividualPurchase(work) {
         metadata: {
             corpus_id: work.id,
             book_title: work.title,
-             custom_fields: [
+            custom_fields: [
                 {
                     display_name: "Book Title",
                     variable_name: "book_title",
@@ -1915,28 +1915,39 @@ async function triggerIndividualPurchase(work) {
         },
         callback: function (response) {
             (async () => {
-                console.log('Payment complete! Reference: ' + response.reference);
-                try {
-                    if (session?.user) {
-                        const { error } = await activeSupabase
-                            .from('user_purchases')
-                            .insert([{
-                                user_id: session.user.id,
-                                corpus_id: work.id,
-                                reference: response.reference,
-                                amount_paid: priceInNaira
-                            }]);
+                console.log('Payment complete! Reference:', response.reference);
 
-                        if (error) throw error;
-                        alert('Payment successful! You now have permanent access to this work.');
-                    } else {
-                        alert('Payment successful! Your purchase has been recorded.');
+                try {
+                    // Fetch the session fresh to guarantee we have the user ID
+                    const { data: { session: currentSession }, error: sessionError } = await activeSupabase.auth.getSession();
+
+                    if (sessionError || !currentSession?.user) {
+                        console.error('Session missing in callback:', sessionError);
+                        alert('Payment was successful, but you appear to be logged out. Please log back in to claim your book.');
+                        return;
                     }
 
+                    const userId = currentSession.user.id;
+                    console.log('Inserting purchase for user:', userId, 'and corpus:', work.id);
+
+                    const { error: insertError } = await activeSupabase
+                        .from('user_purchases')
+                        .insert([{
+                            user_id: userId,
+                            corpus_id: work.id,
+                            reference: response.reference,
+                            amount_paid: priceInNaira
+                        }]);
+
+                    if (insertError)
+                        throw insertError;
+
+                    alert('Payment successful! You now have permanent access to this work.');
                     fetchWorks(activeCategory);
+
                 } catch (err) {
                     console.error('Failed to log purchase in database:', err);
-                    alert('Payment was successful, but we encountered an error updating your access.');
+                    alert('Payment was successful, but we encountered an error updating your access. Check console for details.');
                 }
             })();
         },
