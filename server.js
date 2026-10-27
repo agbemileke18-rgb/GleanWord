@@ -82,20 +82,22 @@ app.post('/webhook/paystack', async (req, res) => {
                 console.log(`📚 Success! Book ${corpusId} unlocked for user ${targetUser.id}`);
             }
 
-            const { error: updateError } = await supabaseAdmin
-                .from('profiles')
-                .update({ is_subscribed: true })
-                .eq('id', targetUser.id);
+            if (metadata.is_subscription || event.data.plan) {
+                const { error: updateError } = await supabaseAdmin
+                    .from('profiles')
+                    .update({ is_subscribed: true })
+                    .eq('id', targetUser.id);
 
-            if (updateError) {
-                console.error("❌ Failed to update profile subscription:", updateError);
-                return res.status(500).send('Profile update failed');
+                if (updateError) {
+                    console.error("❌ Failed to update profile subscription:", updateError);
+                    return res.status(500).send('Profile update failed');
+                }
+
+                console.log(`⭐ Success! User ${targetUser.id} (${customerEmail}) upgraded to Premium subscription.`);
             }
 
-            console.log(`🎉 Success! User ${targetUser.id} (${customerEmail}) auto-created/found and upgraded to Premium.`);
+            res.sendStatus(200);
         }
-
-        res.sendStatus(200);
     } catch (err) {
         console.error("Webhook processing error:", err);
         res.status(500).send('Server error');
