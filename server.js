@@ -71,7 +71,7 @@ app.post('/webhook/paystack', async (req, res) => {
                         corpus_id: corpusId,
                         paystack_reference: reference,
                         amount: amountPaid
-                    }], { onConflict: 'reference' });
+                    }], { onConflict: 'paystack_reference' });
 
                 if (purchaseError) {
                     console.error("❌ Failed to log book purchase:", purchaseError);
