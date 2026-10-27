@@ -70,7 +70,8 @@ app.post('/webhook/paystack', async (req, res) => {
                         user_id: targetUser.id,
                         corpus_id: corpusId,
                         paystack_reference: reference,
-                        amount: amountPaid
+                        amount: amountPaid,
+                        user_email: customerEmail 
                     }], { onConflict: 'paystack_reference' });
 
                 if (purchaseError) {
