@@ -34,7 +34,6 @@ app.post('/webhook/paystack', async (req, res) => {
             const customerEmail = event.data.customer.email.trim().toLowerCase();
             console.log(`💰 Payment confirmed via webhook for: ${customerEmail}`);
 
-            // 3. Find the user ID in Supabase Auth by their email
             const { data: authUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers();
 
             if (listError) {
@@ -70,8 +69,8 @@ app.post('/webhook/paystack', async (req, res) => {
                     .upsert([{
                         user_id: targetUser.id,
                         corpus_id: corpusId,
-                        reference: reference,
-                        amount_paid: amountPaid
+                        paystack_reference: reference,
+                        amount: amountPaid
                     }], { onConflict: 'reference' });
 
                 if (purchaseError) {
