@@ -14,6 +14,60 @@ const supabaseAdmin = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+app.post('/api/create-subaccount', async (req, res) => {
+    try {
+        const { userId, businessName, settlementBank, accountNumber } = req.body;
+
+        if (!userId || !settlementBank || !accountNumber) {
+            return res.status(400).json({ error: 'Missing required bank or user details.' });
+        }
+
+        const paystackResponse = await fetch('https://api.paystack.co/subaccount', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                business_name: businessName || 'GleanWord Author',
+                settlement_bank: settlementBank,
+                account_number: accountNumber,
+                percentage_charge: 20
+            }),
+        });
+
+        const paystackData = await paystackResponse.json();
+
+        if (!paystackData.status) {
+            return res.status(400).json({
+                error: paystackData.message || 'Failed to create Paystack subaccount.'
+            });
+        }
+
+        const subaccountCode = paystackData.data.subaccount_code;
+
+        const { error: dbError } = await supabaseAdmin
+            .from('profiles')
+            .update({ paystack_subaccount_code: subaccountCode })
+            .eq('id', userId);
+
+        if (dbError) {
+            console.error('Supabase profile update error:', dbError);
+            return res.status(500).json({ error: 'Failed to save payout profile to database.' });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Payout account successfully linked!',
+            subaccount_code: subaccountCode
+        });
+
+    } catch (err) {
+        console.error('Server error in /api/create-subaccount:', err);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
 app.post('/webhook/paystack', async (req, res) => {
     try {
         const paystackSignature = req.headers['x-paystack-signature'];
@@ -71,7 +125,7 @@ app.post('/webhook/paystack', async (req, res) => {
                         corpus_id: corpusId,
                         paystack_reference: reference,
                         amount: amountPaid,
-                        user_email: customerEmail 
+                        user_email: customerEmail
                     }], { onConflict: 'paystack_reference' });
 
                 if (purchaseError) {

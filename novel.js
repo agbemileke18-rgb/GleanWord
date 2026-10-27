@@ -11,7 +11,6 @@ export async function handleTextSubmission(
     rawCoverUrl = '',
     accessType = 'free',
     price = 0,
-    authorSubaccount = ''
 ) {
     try {
         const title = normalizeYorubaText(rawTitle);
@@ -30,7 +29,6 @@ export async function handleTextSubmission(
             cover_url,
             access_type: accessType,
             price: price,
-            author_subaccount_code: authorSubaccount.trim(),
             status: 'pending'
         });
 
@@ -1195,10 +1193,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     openResourceBtn?.addEventListener('click', async (e) => {
         e.preventDefault();
-
         if (typeof closeDrawer === 'function') {
             closeDrawer();
-        } try {
+        }
+        try {
             const activeSupabase = window.supabaseClient || supabaseClient;
             let session = null;
             if (activeSupabase && activeSupabase.auth) {
@@ -1211,9 +1209,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            if (addResourceModal) {
-                addResourceModal.style.display = 'flex';
+            const userId = session.user.id;
+
+            const { data: profile, error } = await activeSupabase
+                .from('profiles')
+                .select('paystack_subaccount_code')
+                .eq('id', userId)
+                .single();
+
+            if (error) {
+                console.error('Error checking author profile:', error);
             }
+
+            if (!profile || !profile.paystack_subaccount_code) {
+                if (typeof openBankOnboardingModal === 'function') {
+                    openBankOnboardingModal(userId, session.user.email);
+                } else {
+                    alert('Please link your bank account to start publishing paid resources.');
+                }
+            } else {
+                if (addResourceModal) {
+                    addResourceModal.style.display = 'flex';
+                }
+            }
+
         } catch (err) {
             console.error('Error opening modal:', err);
         }
@@ -1235,7 +1254,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const accessType = document.getElementById('modal-corpus-access')?.value || 'free';
         const price = parseFloat(document.getElementById('modal-corpus-price')?.value) || 0;
-        const authorSubaccount = document.getElementById('modal-corpus-subaccount')?.value || '';
         let activeSupabase = window.supabaseClient || supabaseClient;
 
         if (!activeSupabase || typeof activeSupabase.from !== 'function') {
@@ -1255,7 +1273,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 coverUrl,
                 accessType,
                 price,
-                authorSubaccount
             );
 
             alert('Thank you! Your submission has been normalized and sent for admin review. It will appear in the library once approved.');
@@ -1901,7 +1918,7 @@ async function triggerIndividualPurchase(work) {
         email: userEmail,
         amount: priceInKobo,
         currency: 'NGN',
-        subaccount: work.author_subaccount_code || '',
+        subaccount: profile.paystack_subaccount_code || '',
         metadata: {
             corpus_id: work.id,
             book_title: work.title,
@@ -1921,7 +1938,7 @@ async function triggerIndividualPurchase(work) {
 
             setTimeout(() => {
                 fetchWorks(activeCategory);
-            }, 2000); 
+            }, 2000);
         },
 
         onClose: function () {
@@ -1929,5 +1946,99 @@ async function triggerIndividualPurchase(work) {
         }
     });
 
-    handler.openIframe(); 
+    handler.openIframe();
 }
+
+async function submitBankDetails(userId, userEmail, settlementBank, accountNumber, businessName) {
+    try {
+
+        const response = await fetch('/api/create-subaccount', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId,
+                userEmail,
+                businessName: businessName || userEmail,
+                settlementBank,
+                accountNumber
+            }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to link payout account.');
+        }
+
+        alert('Payout account linked successfully!');
+        closeBankOnboardingModal();
+
+        openBookUploadModal();
+
+    } catch (err) {
+        console.error('Bank submission error:', err);
+        alert(err.message || 'An error occurred while linking your bank account.');
+    }
+}
+
+let pendingBankUserId = null;
+let pendingBankUserEmail = null;
+
+export function openBankOnboardingModal(userId, userEmail) {
+    pendingBankUserId = userId;
+    pendingBankUserEmail = userEmail;
+
+    const bankModal = document.getElementById('bank-onboarding-modal');
+    if (bankModal) {
+        bankModal.style.display = 'flex';
+    }
+}
+
+export function closeBankOnboardingModal() {
+    pendingBankUserId = null;
+    pendingBankUserEmail = null;
+
+    const bankModal = document.getElementById('bank-onboarding-modal');
+    if (bankModal) {
+        bankModal.style.display = 'none';
+    }
+}
+
+document.getElementById('close-bank-modal-btn')?.addEventListener('click', () => {
+    closeBankOnboardingModal();
+});
+
+document.getElementById('bank-onboarding-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const settlementBank = document.getElementById('bank-code-input').value.trim();
+    const accountNumber = document.getElementById('bank-account-input').value.trim();
+    const businessName = document.getElementById('bank-business-name')?.value.trim();
+
+    if (!pendingBankUserId) {
+        alert('Session context missing. Please sign in again.');
+        return;
+    }
+
+    const submitBtn = document.getElementById('submit-bank-btn');
+    try {
+        if (submitBtn) submitBtn.textContent = 'Linking Account...';
+        if (submitBtn) submitBtn.disabled = true;
+
+        await submitBankDetails(
+            pendingBankUserId,
+            pendingBankUserEmail,
+            settlementBank,
+            accountNumber,
+            businessName
+        );
+
+    } catch (err) {
+        console.error(err);
+    } finally {
+        if (submitBtn) submitBtn.textContent = 'Link Bank & Continue';
+        if (submitBtn) submitBtn.disabled = false;
+    }
+});
