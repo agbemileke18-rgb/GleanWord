@@ -82,7 +82,7 @@ app.post('/webhook/paystack', async (req, res) => {
                 console.log(`📚 Success! Book ${corpusId} unlocked for user ${targetUser.id}`);
             }
 
-            if (metadata.is_subscription || event.data.plan) {
+            else if (metadata.is_subscription || event.data.plan) {
                 const { error: updateError } = await supabaseAdmin
                     .from('profiles')
                     .update({ is_subscribed: true })
