@@ -1918,8 +1918,7 @@ async function triggerIndividualPurchase(work) {
         email: userEmail,
         amount: priceInKobo,
         currency: 'NGN',
-        subaccount: profile.paystack_subaccount_code || '',
-        metadata: {
+        subaccount: (typeof profile !== 'undefined' && profile && profile.paystack_subaccount_code) ? profile.paystack_subaccount_code : '', metadata: {
             corpus_id: work.id,
             book_title: work.title,
             custom_fields: [
