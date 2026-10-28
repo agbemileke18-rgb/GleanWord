@@ -1918,7 +1918,8 @@ async function triggerIndividualPurchase(work) {
         email: userEmail,
         amount: priceInKobo,
         currency: 'NGN',
-        subaccount: (typeof profile !== 'undefined' && profile && profile.paystack_subaccount_code) ? profile.paystack_subaccount_code : '', metadata: {
+        subaccount: (typeof profile !== 'undefined' && profile && profile.paystack_subaccount_code) ? profile.paystack_subaccount_code : '',
+        metadata: {
             corpus_id: work.id,
             book_title: work.title,
             custom_fields: [
@@ -1929,23 +1930,23 @@ async function triggerIndividualPurchase(work) {
                 }
             ]
         },
-
-        callback: async function (response) {
+        callback: function (response) {
             console.log('Payment complete! Reference:', response.reference);
 
-            const buyerEmail = response.customer && response.customer.email ? response.customer.email : userEmail;
+            (async () => {
+                const buyerEmail = response.customer && response.customer.email ? response.customer.email : userEmail;
+                const { data: { session } } = await supabase.auth.getSession();
 
-            const { data: { session } } = await supabase.auth.getSession();
+                if (!session) {
+                    showPurchaseSuccessModal(buyerEmail);
+                } else {
+                    alert('Payment successful! Your book has been unlocked in your library.');
+                }
 
-            if (!session) {
-                showPurchaseSuccessModal(buyerEmail);
-            } else {
-                alert('Payment successful! Your book has been unlocked in your library.');
-            }
-
-            setTimeout(() => {
-                fetchWorks(activeCategory);
-            }, 2000);
+                setTimeout(() => {
+                    fetchWorks(activeCategory);
+                }, 2000);
+            })();
         },
 
         onClose: function () {
