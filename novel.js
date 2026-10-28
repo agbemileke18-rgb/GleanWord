@@ -1975,6 +1975,22 @@ function showPurchaseSuccessModal(email) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 
+window.openLoginModalWithEmail = function (email) {
+    console.log("Opening login modal for email:", email);
+
+    const emailInput = document.getElementById('emailModalInput');
+    if (emailInput && email) {
+        emailInput.value = email;
+    }
+
+    const emailModal = document.getElementById('emailModal');
+    if (emailModal) {
+        emailModal.style.display = 'block';
+    } else {
+        console.error("Could not find #emailModal in the DOM.");
+    }
+};
+
 async function submitBankDetails(userId, userEmail, settlementBank, accountNumber, businessName) {
     try {
 
