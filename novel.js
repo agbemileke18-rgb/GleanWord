@@ -2075,3 +2075,26 @@ document.getElementById('bank-onboarding-form')?.addEventListener('submit', asyn
         if (submitBtn) submitBtn.disabled = false;
     }
 });
+
+window.addEventListener('DOMContentLoaded', async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paystackRef = urlParams.get('reference');
+
+    if (paystackRef) {
+        console.log('Detected Paystack redirect reference:', paystackRef);
+
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session) {
+            if (typeof showPurchaseSuccessModal === 'function') {
+                showPurchaseSuccessModal();
+            } else {
+                console.error('showPurchaseSuccessModal function is not defined yet.');
+            }
+        } else {
+            alert('Payment verified successfully! Your book is unlocked.');
+        }
+    }
+});
