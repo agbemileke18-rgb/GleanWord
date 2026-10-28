@@ -1975,19 +1975,54 @@ function showPurchaseSuccessModal(email) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 
-window.openLoginModalWithEmail = function (email) {
+window.openLoginModalWithEmail = function(email) {
     console.log("Opening login modal for email:", email);
-
+    
+    const successNotice = document.getElementById('purchase-success-notice');
+    if (successNotice) {
+        successNotice.remove();
+    }
+    
     const emailInput = document.getElementById('emailModalInput');
     if (emailInput && email) {
         emailInput.value = email;
     }
 
-    const emailModal = document.getElementById('emailModal');
-    if (emailModal) {
-        emailModal.style.display = 'block';
-    } else {
-        console.error("Could not find #emailModal in the DOM.");
+    onEmailSubmitCallback = async (submittedEmail) => {
+        console.log("Sending OTP to:", submittedEmail);
+        
+        try {
+            const { error } = await supabaseClient.auth.signInWithOtp({ 
+                email: submittedEmail,
+                options: { shouldCreateUser: true }
+            });
+
+            if (error) {
+                console.error("Supabase OTP Error:", error.message);
+                alert("Error sending code: " + error.message);
+                return;
+            }
+
+            console.log("OTP sent successfully!");
+
+            const otpModal = document.getElementById('otpModal');
+            if (otpModal) {
+                otpModal.style.display = 'flex'; 
+            }
+
+            const emailDisplay = document.getElementById('otpEmailDisplay');
+            if (emailDisplay) {
+                emailDisplay.textContent = submittedEmail;
+            }
+
+        } catch (err) {
+            console.error("Unexpected error:", err);
+        }
+    };
+
+    const modal = document.getElementById('emailModal');
+    if (modal) {
+        modal.style.display = 'flex';
     }
 };
 
