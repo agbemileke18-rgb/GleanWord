@@ -1931,10 +1931,18 @@ async function triggerIndividualPurchase(work) {
             ]
         },
 
-        callback: function (response) {
+        callback: async function (response) {
             console.log('Payment complete! Reference:', response.reference);
 
-            alert('Payment successful! Processing your access...');
+            const buyerEmail = response.customer && response.customer.email ? response.customer.email : userEmail;
+
+            const { data: { session } } = await supabase.auth.getSession();
+
+            if (!session) {
+                showPurchaseSuccessModal(buyerEmail);
+            } else {
+                alert('Payment successful! Your book has been unlocked in your library.');
+            }
 
             setTimeout(() => {
                 fetchWorks(activeCategory);
@@ -1947,6 +1955,24 @@ async function triggerIndividualPurchase(work) {
     });
 
     handler.openIframe();
+}
+
+function showPurchaseSuccessModal(email) {
+    const modalHtml = `
+        <div id="purchase-success-notice" style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 2000;">
+            <div style="background: white; padding: 30px; border-radius: 8px; max-width: 400px; text-align: center; color: #1f2937;">
+                <h3 style="margin-top: 0; color: #059669;">Payment Successful! 🎉</h3>
+                <p style="font-size: 0.95rem; line-height: 1.5;">
+                    Your book is ready! Please sign in using the email you just used: 
+                    <br><strong style="color: #2563eb;">${email}</strong>
+                </p>
+                <button onclick="openLoginModalWithEmail('${email}')" style="background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-top: 15px;">
+                    Sign In Now
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 
 async function submitBankDetails(userId, userEmail, settlementBank, accountNumber, businessName) {

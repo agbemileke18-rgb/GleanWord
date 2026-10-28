@@ -366,7 +366,6 @@ body.dark-mode #theme-toggle svg path {
     height: 100vh;
     background-color: rgba(0, 0, 0, 0.75);
     backdrop-filter: blur(4px);
-    /* Modern glass blur effect */
     display: flex;
     justify-content: center;
     align-items: center;
