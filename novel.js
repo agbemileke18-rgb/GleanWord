@@ -1935,7 +1935,7 @@ async function triggerIndividualPurchase(work) {
 
             (async () => {
                 const buyerEmail = response.customer && response.customer.email ? response.customer.email : userEmail;
-                const { data: { session } } = await supabase.auth.getSession();
+                const { data: { session } } = await supabaseClient.auth.getSession();
 
                 if (!session) {
                     showPurchaseSuccessModal(buyerEmail);
