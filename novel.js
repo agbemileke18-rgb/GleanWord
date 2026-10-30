@@ -75,7 +75,10 @@ async function fetchWorks(category = 'all') {
     booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">Loading resources...</p>`;
 
     try {
-        let query = supabaseClient.from('works').select('*').order('created_at', { ascending: false });
+        let query = supabaseClient
+            .from('works')
+            .select('*, profiles!author_id(paystack_subaccount_code)')
+            .order('created_at', { ascending: false });
 
         if (category && category !== 'all') {
             query = query.eq('category', category);
@@ -94,7 +97,6 @@ async function fetchWorks(category = 'all') {
             return;
         }
 
-        // Pass directly to your robust renderBooksGrid function
         renderBooksGrid(works);
 
     } catch (err) {
@@ -764,7 +766,7 @@ if (lastReadWork !== null && lastReadChapter !== null) {
 
         const { data: work } = await supabaseClient
             .from('works')
-            .select('*')
+            .select('*, profiles!author_id(paystack_subaccount_code)')
             .eq('id', lastReadWork)
             .single();
 
@@ -893,6 +895,9 @@ function payWithPaystack(userEmail) {
         alert("Paystack SDK failed to load. Please check your internet connection.");
         return;
     }
+
+    localStorage.setItem('pending_payment_email', userEmail);
+    localStorage.setItem('pending_payment_type', 'subscription');
 
     try {
         const handler = PaystackPop.setup({
@@ -1131,7 +1136,7 @@ function renderSignOutButton(isSignedIn) {
             handleSignOut();
         };
     } else {
-        authBtn.textContent = '🔑 Already Subscribed? Log In';
+        authBtn.textContent = '🔑 Already have access? Log In';
         authBtn.onclick = (e) => {
             e.stopPropagation();
             closeDrawer();
@@ -1582,7 +1587,7 @@ async function openBookFromReadingList(workId, targetChapterIndex = 0) {
     try {
         const { data: work, error } = await supabaseClient
             .from('works')
-            .select('*')
+            .select('*, profiles!author_id(paystack_subaccount_code)')
             .eq('id', workId)
             .single();
 
@@ -1896,9 +1901,28 @@ async function triggerIndividualPurchase(work) {
     const activeSupabase = window.supabaseClient || supabaseClient;
     const { data: { session } } = await activeSupabase.auth.getSession();
 
-    const userEmail = session?.user?.email || prompt('Enter your email address to complete your purchase and create your account:');
-    if (!userEmail) return;
+    let userEmail = session?.user?.email;
 
+    if (userEmail) {
+        executeBookPayment(userEmail, work);
+    } else {
+        const modalTitle = document.querySelector('#emailModal h3') || document.querySelector('.email-modal-title');
+        if (modalTitle) modalTitle.textContent = "Complete Your Purchase";
+
+        onEmailSubmitCallback = (enteredEmail) => {
+            if (!enteredEmail) return;
+            executeBookPayment(enteredEmail, work);
+        };
+
+        const emailModal = document.getElementById('emailModal');
+        if (emailModal) {
+            emailModal.style.display = 'flex';
+        }
+    }
+}
+
+async function executeBookPayment(userEmail, work) {
+    console.log("Full book object received:", work);
     const priceInNaira = work.price;
 
     if (!priceInNaira || priceInNaira <= 0) {
@@ -1906,19 +1930,40 @@ async function triggerIndividualPurchase(work) {
         return;
     }
 
+    let authorSubaccount = work.profiles?.paystack_subaccount_code;
+
+    if (!authorSubaccount && work.author_id) {
+        const activeSupabase = window.supabaseClient || supabaseClient;
+        const { data: profileData } = await activeSupabase
+            .from('profiles')
+            .select('paystack_subaccount_code')
+            .eq('id', work.author_id)
+            .limit(1);
+            
+        authorSubaccount = profileData && profileData.length > 0 ? profileData[0].paystack_subaccount_code : null;
+    }
+
+    if (!authorSubaccount) {
+        alert('Error: This author does not have a Paystack subaccount configured yet. Payment halted to protect revenue split.');
+        return;
+    }
+
     const priceInKobo = priceInNaira * 100;
 
     if (typeof PaystackPop === 'undefined') {
-        alert('Paystack SDK is not loaded. Please check your internet connection or script tags.');
+        alert("Paystack SDK is not loaded. Please check your internet connection or script tags.");
         return;
     }
+
+    localStorage.setItem('pending_payment_email', userEmail);
+    localStorage.setItem('pending_payment_type', 'book');
 
     const handler = PaystackPop.setup({
         key: 'pk_live_d7daec8fa68494d3a0f624f8a1d61f9b3695b76b',
         email: userEmail,
         amount: priceInKobo,
         currency: 'NGN',
-        subaccount: (typeof profile !== 'undefined' && profile && profile.paystack_subaccount_code) ? profile.paystack_subaccount_code : '',
+        subaccount: authorSubaccount,
         metadata: {
             corpus_id: work.id,
             book_title: work.title,
@@ -1935,7 +1980,8 @@ async function triggerIndividualPurchase(work) {
 
             (async () => {
                 const buyerEmail = response.customer && response.customer.email ? response.customer.email : userEmail;
-                const { data: { session } } = await supabaseClient.auth.getSession();
+                const activeSupabase = window.supabaseClient || supabaseClient;
+                const { data: { session } } = await activeSupabase.auth.getSession();
 
                 if (!session) {
                     showPurchaseSuccessModal(buyerEmail);
@@ -1944,11 +1990,10 @@ async function triggerIndividualPurchase(work) {
                 }
 
                 setTimeout(() => {
-                    fetchWorks(activeCategory);
+                    if (typeof fetchWorks === 'function') fetchWorks(activeCategory);
                 }, 2000);
             })();
         },
-
         onClose: function () {
             console.log('Payment window closed by user.');
         }
@@ -1975,14 +2020,14 @@ function showPurchaseSuccessModal(email) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 
-window.openLoginModalWithEmail = function(email) {
+window.openLoginModalWithEmail = function (email) {
     console.log("Opening login modal for email:", email);
-    
+
     const successNotice = document.getElementById('purchase-success-notice');
     if (successNotice) {
         successNotice.remove();
     }
-    
+
     const emailInput = document.getElementById('emailModalInput');
     if (emailInput && email) {
         emailInput.value = email;
@@ -1990,9 +2035,9 @@ window.openLoginModalWithEmail = function(email) {
 
     onEmailSubmitCallback = async (submittedEmail) => {
         console.log("Sending OTP to:", submittedEmail);
-        
+
         try {
-            const { error } = await supabaseClient.auth.signInWithOtp({ 
+            const { error } = await supabaseClient.auth.signInWithOtp({
                 email: submittedEmail,
                 options: { shouldCreateUser: true }
             });
@@ -2007,7 +2052,7 @@ window.openLoginModalWithEmail = function(email) {
 
             const otpModal = document.getElementById('otpModal');
             if (otpModal) {
-                otpModal.style.display = 'flex'; 
+                otpModal.style.display = 'flex';
             }
 
             const emailDisplay = document.getElementById('otpEmailDisplay');
@@ -2127,25 +2172,28 @@ document.getElementById('bank-onboarding-form')?.addEventListener('submit', asyn
     }
 });
 
-window.addEventListener('DOMContentLoaded', async () => {
+window.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const paystackRef = urlParams.get('reference');
+    const paymentRef = urlParams.get('reference') || urlParams.get('trxref');
+    const savedEmail = localStorage.getItem('pending_payment_email');
+    const paymentType = localStorage.getItem('pending_payment_type');
 
-    if (paystackRef) {
-        console.log('Detected Paystack redirect reference:', paystackRef);
+    if (paymentRef && savedEmail) {
+        console.log(`Detected return from external payment (${paymentType}) for:`, savedEmail);
 
         window.history.replaceState({}, document.title, window.location.pathname);
 
-        const { data: { session } } = await supabase.auth.getSession();
+        localStorage.removeItem('pending_payment_email');
+        localStorage.removeItem('pending_payment_type');
 
-        if (!session) {
-            if (typeof showPurchaseSuccessModal === 'function') {
-                showPurchaseSuccessModal();
+        if (paymentType === 'subscription') {
+            if (typeof showPaymentSuccessModal === 'function') {
+                showPaymentSuccessModal(savedEmail);
             } else {
-                console.error('showPurchaseSuccessModal function is not defined yet.');
+                window.openLoginModalWithEmail(savedEmail);
             }
         } else {
-            alert('Payment verified successfully! Your book is unlocked.');
+            showPurchaseSuccessModal(savedEmail);
         }
     }
 });
