@@ -11,6 +11,7 @@ export async function handleTextSubmission(
     rawCoverUrl = '',
     accessType = 'free',
     price = 0,
+    authorId = null
 ) {
     try {
         const title = normalizeYorubaText(rawTitle);
@@ -29,7 +30,8 @@ export async function handleTextSubmission(
             cover_url,
             access_type: accessType,
             price: price,
-            status: 'pending'
+            status: 'pending',
+            author_id: authorId
         });
 
         console.log('Successfully saved to GleanWord corpus:', savedRecord);
@@ -133,20 +135,26 @@ async function renderBooksGrid(works) {
 
         const isStandalone = work.access_type === 'purchase';
         const isUserOwned = userPurchases.includes(work.id);
-        const isOfficialWork = !work.access_type || work.access_type === 'subscription';
 
+        const currentUserId = session?.user?.id;
+        const isAuthor = work.author_id && currentUserId && work.author_id === currentUserId;
+        const hasFullAccess = isUserOwned || isAuthor;
+
+        const isOfficialWork = !work.access_type || work.access_type === 'subscription';
         let badgeHTML = '';
         let buttonActionHTML = '';
 
         if (isStandalone) {
-            if (isUserOwned) {
+            if (hasFullAccess) {
                 badgeHTML = `<span class="badge owned" style="background:#2e7d32; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7rem; font-weight:bold;">OWNED</span>`;
-                buttonActionHTML = `<button class="btn-card-action" style="margin-top:6px; padding:4px 10px; font-size:0.75rem; background:#38bdf8; color:#0f172a; border:none; border-radius:4px; cursor:pointer;">Read Book</button>`;
+                buttonActionHTML = `<button class="btn-card-action" 
+                style="margin-top:6px; padding:4px 10px; font-size:0.75rem; background:#38bdf8; color:#0f172a; border:none; border-radius:4px; cursor:pointer;">Read Book</button>`;
                 card.onclick = () => openReaderForWork(work);
             } else {
                 const formattedPrice = work.price ? work.price.toLocaleString() : '1,500';
                 badgeHTML = `<span class="badge paid" style="background:#e11d48; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7rem; font-weight:bold;">₦${formattedPrice}</span>`;
-                buttonActionHTML = `<button class="btn-card-action btn-buy" style="margin-top:6px; padding:4px 10px; font-size:0.75rem; background:#f59e0b; color:#0f172a; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">Buy Work — ₦${formattedPrice}</button>`;
+                buttonActionHTML = `<button class="btn-card-action btn-buy" 
+                style="margin-top:6px; padding:4px 10px; font-size:0.75rem; background:#f59e0b; color:#0f172a; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">Buy Work — ₦${formattedPrice}</button>`;
 
                 card.onclick = (e) => {
                     e.stopPropagation();
@@ -155,11 +163,13 @@ async function renderBooksGrid(works) {
             }
         } else if (isOfficialWork) {
             badgeHTML = `<span class="badge pass" style="background:#6366f1; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7rem; font-weight:bold;">GLEANWORD PASS</span>`;
-            buttonActionHTML = `<button class="btn-card-action" style="margin-top:6px; padding:4px 10px; font-size:0.75rem; background:#38bdf8; color:#0f172a; border:none; border-radius:4px; cursor:pointer;">Read Preview</button>`;
+            buttonActionHTML = `<button class="btn-card-action" 
+            style="margin-top:6px; padding:4px 10px; font-size:0.75rem; background:#38bdf8; color:#0f172a; border:none; border-radius:4px; cursor:pointer;">Read Preview</button>`;
             card.onclick = () => openReaderForWork(work);
         } else {
             badgeHTML = `<span class="badge free" style="background:#10b981; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7rem; font-weight:bold;">FREE CORPUS</span>`;
-            buttonActionHTML = `<button class="btn-card-action" style="margin-top:6px; padding:4px 10px; font-size:0.75rem; background:#38bdf8; color:#0f172a; border:none; border-radius:4px; cursor:pointer;">Read Entry</button>`;
+            buttonActionHTML = `<button class="btn-card-action" 
+            style="margin-top:6px; padding:4px 10px; font-size:0.75rem; background:#38bdf8; color:#0f172a; border:none; border-radius:4px; cursor:pointer;">Read Entry</button>`;
             card.onclick = () => openReaderForWork(work);
         }
 
@@ -1255,11 +1265,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         const category = document.getElementById('modal-corpus-category').value;
         const content = document.getElementById('modal-corpus-content').value;
         const description = document.getElementById('modal-corpus-description')?.value || '';
-        const coverUrl = document.getElementById('modal-corpus-cover')?.value || '';
+
+        const activeSupabase = window.supabaseClient || supabaseClient;
+
+        const { data: { session } } = await activeSupabase.auth.getSession();
+        const currentUserId = session?.user?.id;
+
+        if (!currentUserId) {
+            alert('You must be logged in to publish a work.');
+            return;
+        }
+
+        let coverUrl = '';
+
+        const fileInput = document.getElementById('modal-corpus-cover');
+        if (fileInput && fileInput.files && fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            const fileExt = file.name.split('.').pop();
+            const fileName = `cover_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+
+            const { error: uploadError } = await activeSupabase.storage
+                .from('covers')
+                .upload(fileName, file);
+
+            if (uploadError) {
+                alert('Error uploading cover image: ' + uploadError.message);
+                return;
+            }
+
+            const { data } = activeSupabase.storage
+                .from('covers')
+                .getPublicUrl(fileName);
+
+            coverUrl = data.publicUrl;
+        }
 
         const accessType = document.getElementById('modal-corpus-access')?.value || 'free';
         const price = parseFloat(document.getElementById('modal-corpus-price')?.value) || 0;
-        let activeSupabase = window.supabaseClient || supabaseClient;
 
         if (!activeSupabase || typeof activeSupabase.from !== 'function') {
             if (window.supabase && typeof window.supabase.createClient === 'function') {
@@ -1278,6 +1320,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 coverUrl,
                 accessType,
                 price,
+                currentUserId
             );
 
             alert('Thank you! Your submission has been normalized and sent for admin review. It will appear in the library once approved.');
@@ -1922,7 +1965,23 @@ async function triggerIndividualPurchase(work) {
 }
 
 async function executeBookPayment(userEmail, work) {
-    console.log("Full book object received:", work);
+
+    const activeSupabase = window.supabaseClient || supabaseClient;
+    const { data: { session } } = await activeSupabase.auth.getSession();
+    const currentUserId = session?.user?.id;
+
+
+    if (currentUserId && work.author_id === currentUserId) {
+        if (typeof openReaderForWork === 'function') {
+            await openReaderForWork(work);
+        } else if (typeof openWorkReader === 'function') {
+            await openWorkReader(work);
+        } else {
+            alert('Access granted: You are the author of this work.');
+        }
+        return;
+    }
+
     const priceInNaira = work.price;
 
     if (!priceInNaira || priceInNaira <= 0) {
@@ -1939,7 +1998,7 @@ async function executeBookPayment(userEmail, work) {
             .select('paystack_subaccount_code')
             .eq('id', work.author_id)
             .limit(1);
-            
+
         authorSubaccount = profileData && profileData.length > 0 ? profileData[0].paystack_subaccount_code : null;
     }
 

@@ -1,7 +1,19 @@
 import { normalizeYorubaText } from '../utils/normalizeYoruba.js';
 
 export async function saveCorpusText(supabaseClient, {
-    title, author, content, category, metadata, description = '', cover_url = '', access_type = 'free', price = 0, status = 'pending', language_code = 'yo'
+    title,
+    author,
+    content,
+    category,
+    metadata,
+    description = '',
+    cover_url = '',
+    access_type = '',
+    price = 0,
+    status = 'pending',
+    language_code = 'yo',
+    is_featured = false,
+    author_id = null 
 }) {
     const cleanTitle = normalizeYorubaText(title);
     const cleanAuthor = normalizeYorubaText(author);
@@ -27,12 +39,13 @@ export async function saveCorpusText(supabaseClient, {
             status: status,
             language_code: language_code || 'yo',
             metadata: metadata,
-            is_featured: false
+            is_featured: is_featured,
+            author_id: author_id 
         }])
         .select();
 
     if (workError) {
-        console.error('Supabase insertion error:', workError.message);
+        console.error('Supabase Insertion error:', workError.message);
         throw new Error(workError.message);
     }
 
@@ -48,10 +61,9 @@ export async function saveCorpusText(supabaseClient, {
         }]);
 
     if (chapterError) {
-        console.error('Chapter creation error:', chapterError.message);
+        console.error('Chapter insertion error:', chapterError.message);
         throw new Error(chapterError.message);
     }
 
-    console.log('Successfully saved work with full metadata and generated chapter 1:', newWork);
     return newWork;
 }
