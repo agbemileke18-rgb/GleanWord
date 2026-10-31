@@ -5,36 +5,85 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>GleanWord - Novels, Poetry & Grammar</title>
-  <link rel="stylesheet" href="novel.css?v=47">
+  <link rel="stylesheet" href="novel.css?v=48">
   <link rel="manifest" href="manifest.json" />
 </head>
 
 <body>
 
-  <header class="navbar">
-    <button id="menu-toggle-btn" class="menu-toggle-btn" aria-label="Open Navigation Menu">
-      ☰
-    </button>
-    <div class="logo" id="nav-home">GleanWord</div>
-    <nav class="nav-links">
-      <button class="nav-btn active" data-category="all">All</button>
-      <button class="nav-btn" data-category="novel">Novels</button>
-      <button class="nav-btn" data-category="poetry">Poetry</button>
-      <button class="nav-btn" data-category="grammar">Grammar</button>
-    </nav>
+  <div id="mainAppContainer">
+    <header class="navbar">
+      <button id="menu-toggle-btn" class="menu-toggle-btn" aria-label="Open Navigation Menu">
+        ☰
+      </button>
+      <div class="logo" id="nav-home">GLEANWORD</div>
+      <nav class="nav-links">
+        <button class="nav-btn active" data-category="all">All</button>
+        <button class="nav-btn" data-category="novel">Novels</button>
+        <button class="nav-btn" data-category="poetry">Poetry</button>
+        <button class="nav-btn" data-category="grammar">Grammar</button>
+      </nav>
 
-    <button id="theme-toggle" class="icon-btn" aria-label="Toggle Theme">&#9728;</button>
-  </header>
+      <button id="theme-toggle" class="icon-btn" aria-label="Toggle Theme">&#9728;</button>
+    </header>
 
-  <main id="catalog-view" class="container">
-    <section class="hero">
-      <h1>Discover Stories, Verse & Master Language</h1>
-      <p>Read free preview chapters or subscribe for full access.</p>
-      <!-- <button id="subscribe-btn" class="subscribe-btn">Subscribe for ₦1,000</button> -->
-    </section>
+    <main id="catalog-view" class="container">
+      <section class="hero">
+        <h1>Discover Stories, Verse & Master Language</h1>
+        <p>Read free preview chapters or subscribe for full access.</p>
+      </section>
 
-    <div class="books-grid" id="books-grid"></div>
-  </main>
+      <div class="books-grid" id="books-grid"></div>
+    </main>
+  </div>
+
+  <section id="profilePageView" class="app-view" style="display: none; padding: 20px;">
+    <div class="profile-header" style="display: flex; align-items: center; margin-bottom: 24px;">
+      <button id="backFromProfileBtn"
+        style="background: transparent; color: inherit; border: none; font-size: 1.2rem; cursor: pointer; margin-right: 15px;">←
+        Back</button>
+      <h2 style="margin: 0; font-size: 1.4rem;">Author & User Profile</h2>
+    </div>
+
+    <div class="profile-card"
+      style="background: #1e1e1e; padding: 20px; border-radius: 12px; margin-bottom: 20px; text-align: center; border: 1px solid #333;">
+      <p id="profileUserEmail" style="font-size: 1rem; margin-bottom: 8px; color: #ccc;">user@example.com</p>
+
+      <div id="profileStatusBadge"
+        style="display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; background: #333; color: #fff; margin-bottom: 8px;">
+        Welcome, reader</div>
+
+      <div id="profileSubscriptionActionContainer" style="margin-bottom: 12px;"></div>
+
+      <div id="authorBadgeContainer" style="margin-top: 4px;"></div>
+    </div>
+
+    <div class="profile-actions" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 40px;">
+      <button id="btnEditBank" class="profile-action-btn"
+        style="padding: 14px; background: #252525; color: #fff; border: 1px solid #444; border-radius: 8px; font-weight: bold; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center;">
+        <span>🏦 Link / Edit Bank Account</span>
+        <span>›</span>
+      </button>
+
+      <button id="btnManageBooks" class="profile-action-btn"
+        style="padding: 14px; background: #252525; color: #fff; border: 1px solid #444; border-radius: 8px; font-weight: bold; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center;">
+        <span>📚 Add / Edit Books</span>
+        <span>›</span>
+      </button>
+    </div>
+
+    <div class="profile-footer-links"
+      style="border-top: 1px solid #333; padding-top: 20px; display: flex; flex-direction: column; gap: 12px;">
+      <button id="btnViewPurchases"
+        style="background: transparent; border: none; color: #aaa; text-align: left; cursor: pointer; font-size: 0.9rem;">📦
+        View My Purchased Books</button>
+
+      <button id="btnCancelSub"
+        style="background: rgba(220, 53, 69, 0.1); border: 1px solid rgba(220, 53, 69, 0.3); color: #ff6b6b; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px;">
+        Cancel Subscription
+      </button>
+    </div>
+  </section>
 
   <main id="reader-view" class="container hidden">
     <div class="reader-toolbar">
@@ -106,6 +155,7 @@
       <hr class="drawer-divider" />
 
       <nav class="drawer-menu">
+        <a href="#" id="navProfile" class="drawer-item">👤 Profile & Settings</a>
         <a href="#" id="drawer-reading-list-btn" class="drawer-item">📖 My Reading List</a>
         <a href="#" id="drawer-reader-preferences-btn" class="drawer-item">⚙️ Reader Preferences</a>
         <a href="#" id="drawer-theme-toggle" class="drawer-item">🌙 Dark Mode Toggle</a>
@@ -141,7 +191,6 @@
     </div>
   </div>
 
-  <!-- Bank Onboarding Modal (Just-in-Time Gatekeeper) -->
   <div id="bank-onboarding-modal" class="modal-overlay"
     style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 1000; justify-content: center; align-items: center;">
     <div class="modal-content"
@@ -277,9 +326,21 @@
     </div>
   </div>
 
+<div id="purchased-books-modal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="modal-content" style="background: var(--card-bg, #1e1e1e); color: var(--text-color, #fff); padding: 25px; border-radius: 12px; width: 90%; max-width: 450px; max-height: 80vh; overflow-y: auto; border: 1px solid var(--border-color, #333);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; font-size: 1.2rem;">My Purchased Books</h3>
+            <button id="close-purchased-modal-btn" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: inherit;">&times;</button>
+        </div>
+        <div id="purchased-books-list" style="display: flex; flex-direction: column; gap: 10px;">
+            <p style="opacity: 0.7; text-align: center;">Loading your purchases...</p>
+        </div>
+    </div>
+</div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://js.paystack.co/v1/inline.js"></script>
-  <script type="module" src="./novel.js?v=47"></script>
+  <script type="module" src="./novel.js?v=48"></script>
 </body>
 
 </html>

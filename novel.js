@@ -1666,6 +1666,256 @@ if (readingListBtn) {
     });
 }
 
+const profileNavBtn = document.getElementById('navProfile');
+const profilePageView = document.getElementById('profilePageView');
+const mainAppContainer = document.getElementById('mainAppContainer');
+const backFromProfileBtn = document.getElementById('backFromProfileBtn');
+
+if (profileNavBtn) {
+    profileNavBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+
+        if (typeof closeDrawer === 'function') closeDrawer();
+
+        if (mainAppContainer) mainAppContainer.style.display = 'none';
+        if (profilePageView) profilePageView.style.display = 'block';
+
+        loadProfileData();
+    });
+}
+
+if (backFromProfileBtn) {
+    backFromProfileBtn.addEventListener('click', () => {
+        if (profilePageView) profilePageView.style.display = 'none';
+        if (mainAppContainer) mainAppContainer.style.display = 'block';
+    });
+}
+
+async function loadProfileData() {
+    const activeSupabase = window.supabaseClient || supabaseClient;
+    const { data: { session } } = await activeSupabase.auth.getSession();
+
+    if (!session || !session.user) {
+        document.getElementById('profileUserEmail').textContent = "Not logged in";
+        return;
+    }
+
+    const user = session.user;
+    const userId = user.id;
+
+    document.getElementById('profileUserEmail').textContent = user.email;
+
+    const statusTextEl = document.getElementById('profileStatusText');
+    const subActionContainer = document.getElementById('profileSubscriptionActionContainer');
+    const authorBadgeContainer = document.getElementById('authorBadgeContainer');
+
+    subActionContainer.innerHTML = '';
+    authorBadgeContainer.innerHTML = '';
+
+    let isSubscribed = false;
+    try {
+        const { data: subData } = await activeSupabase
+            .from('subscriptions')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('status', 'active')
+            .maybeSingle();
+
+        if (subData) isSubscribed = true;
+    } catch (err) {
+        console.log("Subscription check note:", err.message);
+    }
+
+    let hasPurchasedBooks = false;
+    try {
+        const { data: purchaseData } = await activeSupabase
+            .from('user_purchases')
+            .select('id')
+            .eq('user_id', userId);
+
+        if (purchaseData && purchaseData.length > 0) {
+            hasPurchasedBooks = true;
+        }
+    } catch (err) {
+        console.log("Purchase check note:", err.message);
+    }
+
+    let isAuthor = false;
+    try {
+        const { data: authorWorks } = await activeSupabase
+            .from('works')
+            .select('id')
+            .eq('author_id', userId);
+
+        if (authorWorks && authorWorks.length > 0) {
+            isAuthor = true;
+        }
+    } catch (err) {
+        console.log("Author check note:", err.message);
+    }
+
+
+    if (isSubscribed) {
+        statusTextEl.textContent = "Active Subscriber";
+        subActionContainer.innerHTML = `
+            <div style="background: #2e7d32; color: #fff; padding: 10px 16px; border-radius: 8px; font-weight: bold; font-size: 0.9rem;">
+                ✓ Premium User (Subscribed)
+            </div>
+        `;
+    } else if (hasPurchasedBooks) {
+        statusTextEl.textContent = "Book Purchaser";
+        subActionContainer.innerHTML = `
+            <button id="btnProfileSubscribe" style="background: #6366f1; color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%;">
+                Subscribe for ₦1,000 / mo
+            </button>
+        `;
+    } else {
+        statusTextEl.textContent = "Welcome, reader";
+        subActionContainer.innerHTML = `
+            <button id="btnProfileSubscribe" style="background: #6366f1; color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%;">
+                Subscribe for ₦1,000 / mo
+            </button>
+        `;
+    }
+
+    if (isAuthor) {
+        authorBadgeContainer.innerHTML = `
+            <div style="margin-top: 10px; display: inline-block; background: #d97706; color: #fff; padding: 4px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; letter-spacing: 1px;">
+                AUTHOR
+            </div>
+        `;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+
+    const btnEditBank = document.getElementById('btnEditBank');
+    if (btnEditBank) {
+        btnEditBank.addEventListener('click', () => {
+            const bankModal = document.getElementById('bank-onboarding-modal');
+            if (bankModal) {
+                bankModal.style.display = 'flex';
+            }
+        });
+    }
+
+    const btnManageBooks = document.getElementById('btnManageBooks');
+    if (btnManageBooks) {
+        btnManageBooks.addEventListener('click', () => {
+            const resourceModal = document.getElementById('add-resource-modal');
+            if (resourceModal) {
+                resourceModal.style.display = 'flex';
+            }
+        });
+    }
+
+    const btnViewPurchases = document.getElementById('btnViewPurchases');
+    if (btnViewPurchases) {
+        btnViewPurchases.addEventListener('click', () => {
+        });
+    }
+
+    const btnCancelSub = document.getElementById('btnCancelSub');
+    if (btnCancelSub) {
+        btnCancelSub.addEventListener('click', async () => {
+            const confirmCancel = confirm("Are you sure you want to cancel your GleanWord subscription? You will lose premium access at the end of your billing cycle.");
+            if (!confirmCancel) return;
+
+            const activeSupabase = window.supabaseClient || supabaseClient;
+            const { data: { session } } = await activeSupabase.auth.getSession();
+
+            if (!session || !session.user) {
+                alert('You must be logged in to manage your subscription.');
+                return;
+            }
+
+            try {
+                const { error } = await activeSupabase
+                    .from('subscriptions') 
+                    .update({ status: 'cancelled' })
+                    .eq('user_id', session.user.id);
+
+                if (error) throw error;
+
+                alert('Your subscription has been successfully cancelled.');
+
+                if (typeof loadProfileData === 'function') {
+                    loadProfileData();
+                }
+
+            } catch (err) {
+                console.error('Error cancelling subscription:', err.message);
+                alert('Failed to cancel subscription. Please try again or contact support.');
+            }
+        });
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const btnViewPurchases = document.getElementById('btnViewPurchases');
+    const purchasedModal = document.getElementById('purchased-books-modal');
+    const closePurchasedModalBtn = document.getElementById('close-purchased-modal-btn');
+    const purchasedBooksList = document.getElementById('purchased-books-list');
+
+    if (btnViewPurchases) {
+        btnViewPurchases.addEventListener('click', async () => {
+            if (purchasedModal) purchasedModal.style.display = 'flex';
+            await loadPurchasedBooks();
+        });
+    }
+
+    if (closePurchasedModalBtn) {
+        closePurchasedModalBtn.addEventListener('click', () => {
+            if (purchasedModal) purchasedModal.style.display = 'none';
+        });
+    }
+
+    async function loadPurchasedBooks() {
+        const activeSupabase = window.supabaseClient || supabaseClient;
+        const { data: { session } } = await activeSupabase.auth.getSession();
+
+        if (!session) {
+            purchasedBooksList.innerHTML = '<p style="opacity: 0.7; text-align: center;">Please log in to view purchases.</p>';
+            return;
+        }
+
+        purchasedBooksList.innerHTML = '<p style="opacity: 0.7; text-align: center;">Loading your purchases...</p>';
+
+        try {
+            const { data, error } = await activeSupabase
+                .from('user_purchases')
+                .select('*, works(*)')
+                .eq('user_id', session.user.id);
+
+            if (error) throw error;
+
+            if (!data || data.length === 0) {
+                purchasedBooksList.innerHTML = '<p style="opacity: 0.7; text-align: center;">You have not purchased any books yet.</p>';
+                return;
+            }
+
+            purchasedBooksList.innerHTML = '';
+            data.forEach(purchase => {
+                const work = purchase.works || {};
+                const title = work.title || purchase.book_title || 'Untitled Book';
+                const author = work.author_name || work.author || 'GleanWord Author';
+
+                const itemEl = document.createElement('div');
+                itemEl.style.cssText = 'padding: 12px; background: rgba(255,255,255,0.04); border-radius: 8px; border: 1px solid var(--border-color, #333);';
+                itemEl.innerHTML = `
+                    <h4 style="margin: 0 0 4px 0; font-size: 1rem;">📖 ${title}</h4>
+                    <p style="margin: 0; font-size: 0.85rem; opacity: 0.7;">Author: ${author}</p>
+                `;
+                purchasedBooksList.appendChild(itemEl);
+            });
+
+        } catch (err) {
+            console.error('Error loading purchased books:', err.message);
+            purchasedBooksList.innerHTML = '<p style="color: #ff6b6b; text-align: center;">Failed to load purchased books.</p>';
+        }
+    }
+});
+
 function toggleBookmark(workId, title, category, chapterIndex = 0) {
     let savedList = JSON.parse(localStorage.getItem('gleanword_reading_list') || '[]');
 
