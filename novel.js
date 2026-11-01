@@ -1912,6 +1912,114 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Track the work ID of the book currently open in the editor
+    let activeEditingWorkId = null;
+
+    // Update your openAuthorDashboard function to store this ID
+    function openAuthorDashboard(book) {
+        activeEditingWorkId = book.id; // Store active book ID reference
+
+        document.getElementById('editorBookTitle').textContent = `📖 Editing: ${book.title || 'Untitled Work'}`;
+        document.getElementById('author-editor-modal').style.display = 'flex';
+
+        loadChaptersIntoSidebar(book.id);
+    }
+
+    // 1. SAVE CHAPTER CHANGES
+   const btnSaveChapter = document.getElementById('btnSaveChapter');
+if (btnSaveChapter) {
+    btnSaveChapter.addEventListener('click', async () => {
+        const activeSupabase = window.supabaseClient || supabaseClient;
+        const chapterId = document.getElementById('editChapterId').value;
+        const title = document.getElementById('editChapterTitleInput').value;
+        const content = document.getElementById('editChapterContentInput').value;
+
+        if (!chapterId) {
+            alert('Please select a chapter from the sidebar to save.');
+            return;
+        }
+
+        // Request Supabase to return the updated row back using .select()
+        const { data, error } = await activeSupabase
+            .from('chapters')
+            .update({ 
+                title: title, 
+                content: content,
+                updated_at: new Date() // (Safe to keep now that your column exists!)
+            })
+            .eq('id', chapterId)
+            .select(); // <-- This forces Supabase to return the modified row
+
+        if (error) {
+            console.error('Error saving chapter:', error.message);
+            alert('Failed to save chapter changes: ' + error.message);
+        } else if (!data || data.length === 0) {
+            // This catches the silent RLS block or ID mismatch!
+            console.error('Update blocked or zero rows affected. Check your Supabase RLS policies.');
+            alert('Save failed: Database blocked the update. Check your RLS policies for the chapters table.');
+        } else {
+            alert('Chapter saved successfully!');
+            if (activeEditingWorkId) {
+                await loadChaptersIntoSidebar(activeEditingWorkId);
+            }
+        }
+    });
+}
+    // 2. ADD NEW CHAPTER
+    const btnAddChapter = document.getElementById('btnAddChapter');
+    if (btnAddChapter) {
+        btnAddChapter.addEventListener('click', async () => {
+            if (!activeEditingWorkId) {
+                alert('No active book selected.');
+                return;
+            }
+
+            const activeSupabase = window.supabaseClient || supabaseClient;
+
+            // Fetch current chapters to calculate the next sequence number
+            const { data: existingChapters, error: fetchError } = await activeSupabase
+                .from('chapters')
+                .select('chapter_number')
+                .eq('work_id', activeEditingWorkId);
+
+            if (fetchError) {
+                console.error('Error checking chapters count:', fetchError.message);
+            }
+
+            const nextChapterNum = (existingChapters ? existingChapters.length : 0) + 1;
+
+            // Insert new blank chapter into Supabase
+            const { data: newChapter, error: insertError } = await activeSupabase
+                .from('chapters')
+                .insert([
+                    {
+                        work_id: activeEditingWorkId,
+                        chapter_number: nextChapterNum,
+                        title: `Chapter ${nextChapterNum}`,
+                        content: ''
+                    }
+                ])
+                .select()
+                .single();
+
+            if (insertError) {
+                console.error('Error creating new chapter:', insertError.message);
+                alert('Failed to create a new chapter.');
+                return;
+            }
+
+            // Refresh sidebar and automatically load the new chapter into the editor
+            await loadChaptersIntoSidebar(activeEditingWorkId);
+
+            if (newChapter) {
+                document.getElementById('editChapterId').value = newChapter.id;
+                document.getElementById('editChapterTitleInput').value = newChapter.title;
+                document.getElementById('editChapterContentInput').value = '';
+                document.getElementById('editChapterContentInput').focus();
+            }
+        });
+    }
+
     const btnViewPurchases = document.getElementById('btnViewPurchases');
     if (btnViewPurchases) {
         btnViewPurchases.addEventListener('click', () => {
