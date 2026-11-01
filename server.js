@@ -48,7 +48,11 @@ app.post('/api/create-subaccount', async (req, res) => {
 
         const { error: dbError } = await supabaseAdmin
             .from('profiles')
-            .update({ paystack_subaccount_code: subaccountCode })
+            .update({
+                paystack_subaccount_code: subaccountCode,
+                account_number: accountNumber,
+                bank_name: settlementBank
+            })
             .eq('id', userId);
 
         if (dbError) {

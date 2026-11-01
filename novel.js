@@ -33,8 +33,6 @@ export async function handleTextSubmission(
             status: 'pending',
             author_id: authorId
         });
-
-        console.log('Successfully saved to GleanWord corpus:', savedRecord);
         return savedRecord;
 
     } catch (error) {
@@ -898,9 +896,6 @@ function showPaymentSuccessModal() {
 }
 
 function payWithPaystack(userEmail) {
-    console.log("Starting Paystack initialization for:", userEmail);
-
-
     if (typeof PaystackPop === 'undefined') {
         alert("Paystack SDK failed to load. Please check your internet connection.");
         return;
@@ -918,15 +913,11 @@ function payWithPaystack(userEmail) {
             plan: 'PLN_ztae9rndjeto3kr',
             ref: 'sub_' + Math.floor((Math.random() * 1000000000) + 1),
             callback: function (response) {
-                console.log('Payment complete! Reference:', response.reference);
                 showPaymentSuccessModal();
             },
             onClose: function () {
-                console.log('Transaction window closed.');
             }
         });
-
-        console.log("Opening Paystack iframe...");
         handler.openIframe();
     } catch (err) {
         console.error("PaystackPop setup error:", err);
@@ -1532,7 +1523,6 @@ async function verifyOtpCode(userEmail, token) {
 }
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
     if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
-        console.log('User signed in successfully:', session.user.email);
 
         if (typeof updateDrawerSubscriptionState === 'function') {
             await updateDrawerSubscriptionState();
@@ -1569,7 +1559,6 @@ installBtn?.addEventListener('click', async (e) => {
     const { outcome } = await deferredPrompt.userChoice;
 
     if (outcome === 'accepted') {
-        console.log('User installed the PWA');
     }
     deferredPrompt = null;
     installBtn.style.display = 'none';
@@ -1695,90 +1684,90 @@ async function loadProfileData() {
     const activeSupabase = window.supabaseClient || supabaseClient;
     const { data: { session } } = await activeSupabase.auth.getSession();
 
+    const emailEl = document.getElementById('profileUserEmail');
+    const statusTextEl = document.getElementById('profileStatusText');
+    const subActionContainer = document.getElementById('profileSubscriptionActionContainer');
+    const authorBadgeContainer = document.getElementById('authorBadgeContainer');
+
     if (!session || !session.user) {
-        document.getElementById('profileUserEmail').textContent = "Not logged in";
+        if (emailEl) emailEl.textContent = "Not logged in";
         return;
     }
 
     const user = session.user;
     const userId = user.id;
 
-    document.getElementById('profileUserEmail').textContent = user.email;
-
-    const statusTextEl = document.getElementById('profileStatusText');
-    const subActionContainer = document.getElementById('profileSubscriptionActionContainer');
-    const authorBadgeContainer = document.getElementById('authorBadgeContainer');
-
-    subActionContainer.innerHTML = '';
-    authorBadgeContainer.innerHTML = '';
+    if (emailEl) emailEl.textContent = user.email;
+    if (subActionContainer) subActionContainer.innerHTML = '';
+    if (authorBadgeContainer) authorBadgeContainer.innerHTML = '';
 
     let isSubscribed = false;
     try {
-        const { data: subData } = await activeSupabase
-            .from('subscriptions')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('status', 'active')
+        const { data: profileData, error: profileError } = await activeSupabase
+            .from('profiles')
+            .select('is_subscribed')
+            .eq('id', userId)
             .maybeSingle();
 
-        if (subData) isSubscribed = true;
+        if (!profileError && profileData) {
+            isSubscribed = profileData.is_subscribed === true;
+        }
     } catch (err) {
-        console.log("Subscription check note:", err.message);
     }
 
     let hasPurchasedBooks = false;
     try {
-        const { data: purchaseData } = await activeSupabase
+        const { data: purchaseData, error: purchaseError } = await activeSupabase
             .from('user_purchases')
             .select('id')
             .eq('user_id', userId);
 
-        if (purchaseData && purchaseData.length > 0) {
+        if (!purchaseError && purchaseData && purchaseData.length > 0) {
             hasPurchasedBooks = true;
         }
     } catch (err) {
-        console.log("Purchase check note:", err.message);
     }
 
     let isAuthor = false;
     try {
-        const { data: authorWorks } = await activeSupabase
+        const { data: authorWorks, error: authorError } = await activeSupabase
             .from('works')
             .select('id')
             .eq('author_id', userId);
 
-        if (authorWorks && authorWorks.length > 0) {
+        if (!authorError && authorWorks && authorWorks.length > 0) {
             isAuthor = true;
         }
     } catch (err) {
-        console.log("Author check note:", err.message);
     }
 
-
-    if (isSubscribed) {
-        statusTextEl.textContent = "Active Subscriber";
-        subActionContainer.innerHTML = `
-            <div style="background: #2e7d32; color: #fff; padding: 10px 16px; border-radius: 8px; font-weight: bold; font-size: 0.9rem;">
-                ✓ Premium User (Subscribed)
-            </div>
-        `;
-    } else if (hasPurchasedBooks) {
-        statusTextEl.textContent = "Book Purchaser";
-        subActionContainer.innerHTML = `
-            <button id="btnProfileSubscribe" style="background: #6366f1; color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%;">
-                Subscribe for ₦1,000 / mo
-            </button>
-        `;
-    } else {
-        statusTextEl.textContent = "Welcome, reader";
-        subActionContainer.innerHTML = `
-            <button id="btnProfileSubscribe" style="background: #6366f1; color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%;">
-                Subscribe for ₦1,000 / mo
-            </button>
-        `;
+    if (statusTextEl) {
+        if (isSubscribed) {
+            statusTextEl.textContent = "Active Subscriber";
+        } else if (hasPurchasedBooks) {
+            statusTextEl.textContent = "Book Purchaser";
+        } else {
+            statusTextEl.textContent = "Welcome, reader";
+        }
     }
 
-    if (isAuthor) {
+    if (subActionContainer) {
+        if (isSubscribed) {
+            subActionContainer.innerHTML = `
+                <div style="background: #2e7d32; color: #fff; padding: 10px 16px; border-radius: 8px; font-weight: bold; font-size: 0.9rem;">
+                    ✓ Premium User (Subscribed)
+                </div>
+            `;
+        } else {
+            subActionContainer.innerHTML = `
+                <button id="btnProfileSubscribe" style="background: #6366f1; color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%;">
+                    Subscribe for ₦1,000 / month
+                </button>
+            `;
+        }
+    }
+
+    if (authorBadgeContainer && isAuthor) {
         authorBadgeContainer.innerHTML = `
             <div style="margin-top: 10px; display: inline-block; background: #d97706; color: #fff; padding: 4px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; letter-spacing: 1px;">
                 AUTHOR
@@ -1791,22 +1780,136 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnEditBank = document.getElementById('btnEditBank');
     if (btnEditBank) {
-        btnEditBank.addEventListener('click', () => {
-            const bankModal = document.getElementById('bank-onboarding-modal');
-            if (bankModal) {
-                bankModal.style.display = 'flex';
+        btnEditBank.addEventListener('click', async () => {
+            const activeSupabase = window.supabaseClient || supabaseClient;
+            const { data: { session } } = await activeSupabase.auth.getSession();
+
+            if (!session || !session.user) {
+                alert('Please sign in to manage your bank account.');
+                return;
+            }
+
+            const { data: profile, error } = await activeSupabase
+                .from('profiles')
+                .select('paystack_subaccount_code, account_number, bank_name')
+                .eq('id', session.user.id)
+                .maybeSingle();
+
+            if (error) {
+                console.error('Error fetching profile bank info:', error.message);
+            }
+
+            if (profile && profile.paystack_subaccount_code) {
+                const displayBank = document.getElementById('displayBankName');
+                const displayAcct = document.getElementById('displayAccountNumber');
+
+                if (displayBank) displayBank.textContent = profile.bank_name || 'Connected Bank';
+                if (displayAcct) displayAcct.textContent = profile.account_number || profile.paystack_subaccount_code;
+
+                const viewModal = document.getElementById('view-bank-modal');
+                if (viewModal) viewModal.style.display = 'flex';
+            } else {
+                const bankModal = document.getElementById('bank-onboarding-modal');
+                if (bankModal) bankModal.style.display = 'flex';
+            }
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('#triggerEditBankBtn');
+        if (btn) {
+            const viewModal = document.getElementById('view-bank-modal');
+            const bankRegistrationModal = document.getElementById('bank-onboarding-modal');
+
+            if (viewModal) {
+                viewModal.style.display = 'none';
+            }
+
+            if (bankRegistrationModal) {
+                bankRegistrationModal.style.display = 'flex';
+            }
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        const closeBtn = e.target.closest('#closeViewBankBtn');
+        if (closeBtn) {
+            const viewModal = document.getElementById('view-bank-modal');
+            if (viewModal) {
+                viewModal.style.display = 'none';
+            }
+        }
+    });
+
+    const viewBankModalElement = document.getElementById('view-bank-modal');
+    if (viewBankModalElement) {
+        viewBankModalElement.addEventListener('click', (e) => {
+            if (e.target === viewBankModalElement) {
+                viewBankModalElement.style.display = 'none';
             }
         });
     }
 
     const btnManageBooks = document.getElementById('btnManageBooks');
     if (btnManageBooks) {
-        btnManageBooks.addEventListener('click', () => {
-            const resourceModal = document.getElementById('add-resource-modal');
-            if (resourceModal) {
-                resourceModal.style.display = 'flex';
+        btnManageBooks.addEventListener('click', async () => {
+            const activeSupabase = window.supabaseClient || supabaseClient;
+            const { data: { session } } = await activeSupabase.auth.getSession();
+
+            if (!session || !session.user) {
+                alert('You must be signed in to manage or publish books.');
+                return;
+            }
+
+            const userId = session.user.id;
+            const { data: userWorks, error: worksError } = await activeSupabase
+                .from('works')
+                .select('*')
+                .eq('author_id', userId);
+
+            if (worksError) {
+                console.error('Error checking author works:', worksError.message);
+            }
+
+            if (userWorks && userWorks.length > 0) {
+                openAuthorDashboard(userWorks[0]);
+                return;
+            }
+
+            const { data: profile, error: profileError } = await activeSupabase
+                .from('profiles')
+                .select('paystack_subaccount_code')
+                .eq('id', userId)
+                .maybeSingle();
+
+            const hasBankRegistered = profile && profile.paystack_subaccount_code;
+
+            if (hasBankRegistered) {
+                const resourceModal = document.getElementById('add-resource-modal');
+                if (resourceModal) resourceModal.style.display = 'flex';
+            } else {
+                alert('Please link and register your payout bank account before publishing your first paid book.');
+                const bankModal = document.getElementById('bank-onboarding-modal');
+                if (bankModal) bankModal.style.display = 'flex';
             }
         });
+
+        const closeAuthorEditorBtn = document.getElementById('closeAuthorEditorBtn');
+        const authorEditorModal = document.getElementById('author-editor-modal');
+
+        if (closeAuthorEditorBtn && authorEditorModal) {
+            closeAuthorEditorBtn.addEventListener('click', () => {
+                authorEditorModal.style.display = 'none';
+            });
+        }
+
+        if (authorEditorModal) {
+            authorEditorModal.addEventListener('click', (e) => {
+                if (e.target === authorEditorModal) {
+                    authorEditorModal.style.display = 'none';
+                }
+            });
+        }
     }
 
     const btnViewPurchases = document.getElementById('btnViewPurchases');
@@ -1831,9 +1934,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const { error } = await activeSupabase
-                    .from('subscriptions') 
-                    .update({ status: 'cancelled' })
-                    .eq('user_id', session.user.id);
+                    .from('profiles')
+                    .update({ is_subscribed: false })
+                    .eq('id', session.user.id);
 
                 if (error) throw error;
 
@@ -1845,7 +1948,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } catch (err) {
                 console.error('Error cancelling subscription:', err.message);
-                alert('Failed to cancel subscription. Please try again or contact support.');
+                alert('Failed to cancel subscription. Please try again.');
             }
         });
     }
@@ -1915,6 +2018,63 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+
+async function openAuthorDashboard(book) {
+    const activeSupabase = window.supabaseClient || supabaseClient;
+
+    document.getElementById('editorBookTitle').textContent = `📖 Editing: ${book.title || 'Untitled Work'}`;
+    document.getElementById('author-editor-modal').style.display = 'flex';
+
+    await loadChaptersIntoSidebar(book.id);
+}
+
+async function loadChaptersIntoSidebar(workId) {
+    const activeSupabase = window.supabaseClient || supabaseClient;
+    const container = document.getElementById('chaptersListContainer');
+    container.innerHTML = '<p style="font-size: 0.85rem; opacity: 0.5;">Loading chapters...</p>';
+
+    const { data: chapters, error } = await activeSupabase
+        .from('chapters')
+        .select('*')
+        .eq('work_id', workId)
+        .order('chapter_number', { ascending: true });
+
+    if (error) {
+        console.error('Error fetching chapters:', error.message);
+        container.innerHTML = '<p style="font-size: 0.85rem; color: #ef4444;">Failed to load chapters.</p>';
+        return;
+    }
+
+    container.innerHTML = '';
+
+    if (!chapters || chapters.length === 0) {
+        container.innerHTML = '<p style="font-size: 0.85rem; opacity: 0.5;">No chapters yet. Click below to add one!</p>';
+        return;
+    }
+
+    chapters.forEach((ch, index) => {
+        const btn = document.createElement('button');
+        btn.textContent = ch.title || `Chapter ${ch.chapter_number || index + 1}`;
+        btn.style.cssText = `
+            text-align: left; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color, #333);
+            color: inherit; padding: 10px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s;
+        `;
+
+        btn.addEventListener('click', () => {
+            document.getElementById('editChapterId').value = ch.id;
+            document.getElementById('editChapterTitleInput').value = ch.title || '';
+            document.getElementById('editChapterContentInput').value = ch.content || '';
+        });
+
+        container.appendChild(btn);
+    });
+
+    if (chapters.length > 0) {
+        document.getElementById('editChapterId').value = chapters[0].id;
+        document.getElementById('editChapterTitleInput').value = chapters[0].title || '';
+        document.getElementById('editChapterContentInput').value = chapters[0].content || '';
+    }
+}
 
 function toggleBookmark(workId, title, category, chapterIndex = 0) {
     let savedList = JSON.parse(localStorage.getItem('gleanword_reading_list') || '[]');
@@ -2285,7 +2445,6 @@ async function executeBookPayment(userEmail, work) {
             ]
         },
         callback: function (response) {
-            console.log('Payment complete! Reference:', response.reference);
 
             (async () => {
                 const buyerEmail = response.customer && response.customer.email ? response.customer.email : userEmail;
@@ -2304,7 +2463,6 @@ async function executeBookPayment(userEmail, work) {
             })();
         },
         onClose: function () {
-            console.log('Payment window closed by user.');
         }
     });
 
@@ -2330,7 +2488,6 @@ function showPurchaseSuccessModal(email) {
 }
 
 window.openLoginModalWithEmail = function (email) {
-    console.log("Opening login modal for email:", email);
 
     const successNotice = document.getElementById('purchase-success-notice');
     if (successNotice) {
@@ -2343,7 +2500,6 @@ window.openLoginModalWithEmail = function (email) {
     }
 
     onEmailSubmitCallback = async (submittedEmail) => {
-        console.log("Sending OTP to:", submittedEmail);
 
         try {
             const { error } = await supabaseClient.auth.signInWithOtp({
@@ -2356,8 +2512,6 @@ window.openLoginModalWithEmail = function (email) {
                 alert("Error sending code: " + error.message);
                 return;
             }
-
-            console.log("OTP sent successfully!");
 
             const otpModal = document.getElementById('otpModal');
             if (otpModal) {
@@ -2488,8 +2642,6 @@ window.addEventListener('DOMContentLoaded', () => {
     const paymentType = localStorage.getItem('pending_payment_type');
 
     if (paymentRef && savedEmail) {
-        console.log(`Detected return from external payment (${paymentType}) for:`, savedEmail);
-
         window.history.replaceState({}, document.title, window.location.pathname);
 
         localStorage.removeItem('pending_payment_email');
