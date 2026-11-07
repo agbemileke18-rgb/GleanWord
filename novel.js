@@ -305,12 +305,12 @@ function renderCurrentChapter() {
 
         if (workCategory && workCategory.toLowerCase() === 'grammar') {
             contentHTML = `
-                <div class="academic-reader-header" style="text-align: center; margin-bottom: 2rem;">
-                    <span class="badge-academic" style="background: #1e293b; color: #38bdf8; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; letter-spacing: 1px;">A GRAMMAR BOOK</span>
-                    <div class="topic-tag" style="margin-top: 10px; color: #38bdf8; font-weight: 600;">Target Topic: ${window.currentWork?.description || 'Linguistic Analysis'}</div>
-                </div>
-                <div class="academic-body">${rawContent}</div>
-            `;
+        <div class="academic-reader-header" style="text-align: center; margin-bottom: 2rem; column-span: all;">
+            <span class="badge-academic" style="background: #1e293b; color: #38bdf8; padding: 4px 12px; border-radius: 4px; font-size: 0.85rem;">Academic Analysis</span>
+            <div class="topic-tag" style="margin-top: 10px; color: #38bdf8; font-weight: 500;">${chapter.title || ''}</div>
+        </div>
+        ${rawContent}
+    `;
         } else {
             contentHTML = `
                 <div class="chapter-marker chapter-start">${unitLabel} Begins</div>

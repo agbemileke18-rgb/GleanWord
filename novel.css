@@ -895,3 +895,19 @@ body.light-mode .menu-toggle-btn,
     background: #f1f5f9;
     color: #475569;
 }
+
+.academic-body {
+    display: contents;
+}
+
+#reader-body ul, 
+#reader-body ol {
+    list-style-position: inside; /* Forces bullets and numbers to stay inside the text flow */
+    padding-left: 0;             /* Adjust padding since it's now inside */
+}
+
+#reader-body li {
+    break-inside: avoid;         /* Keeps the entire list item from splitting */
+    page-break-inside: avoid;
+    margin-bottom: 0.8rem;       /* Keeps spacing clean */
+}
