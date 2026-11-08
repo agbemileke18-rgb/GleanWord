@@ -319,16 +319,34 @@ function renderCurrentChapter() {
             `;
         }
 
-        if (currentChapterIndex === currentWorkChapters.length - 1) {
-            contentHTML += `
-                <div class="chapter-end-card">
-                    <span class="end-icon">🔚</span>
-                    <h3>You're All Caught Up!</h3>
-                    <p>You've reached the end of the currently uploaded ${pluralLabel.toLowerCase()}.</p>
-                    <div class="schedule-badge">🗓️ New ${pluralLabel} Drop Every Saturday</div>
-                </div>
-            `;
-        }
+       if (currentChapterIndex === currentWorkChapters.length - 1) {
+    // Debug what's actually in window.currentwork
+    console.log("Current Work Object:", window.currentwork);
+
+    // Robust check for boolean true, string "true", or number 1
+    const rawCompleted = window.currentwork ? window.currentwork.is_completed : false;
+    const isBookFinished = rawCompleted === true || rawCompleted === 'true' || rawCompleted === 1;
+
+    if (isBookFinished) {
+        contentHTML += `
+            <div class="chapter-end-card book-finished-card">
+                <span class="end-icon">📚✨</span>
+                <h3>The End</h3>
+                <p>You have reached the final page of this work. Thank you for journeying through this book!</p>
+                <div class="schedule-badge finished-badge" style="background: #28a745; color: #fff;">🎉 Complete Work</div>
+            </div>
+        `;
+    } else {
+        contentHTML += `
+            <div class="chapter-end-card">
+                <span class="end-icon">🎉</span>
+                <h3>You're All Caught Up!</h3>
+                <p>You've reached the end of the currently uploaded ${pluralLabel}.</p>
+                <div class="schedule-badge">📅 New ${pluralLabel} drop Every Saturday!</div>
+            </div>
+        `;
+    }
+}
 
         readerBody.innerHTML = contentHTML;
 
@@ -2164,6 +2182,7 @@ async function openBookReader(workId) {
     }
 
     if (typeof showReaderModal === 'function') {
+        window.currentwork = work; 
         showReaderModal(work, chapters);
     }
 
@@ -2191,6 +2210,7 @@ document.addEventListener('click', async (e) => {
         }
 
         if (typeof openReaderForWork === 'function') {
+            window.currentwork = work; // <-- Set it here too!
             openReaderForWork(work);
         } else {
             console.error('openReaderForWork function is not defined.');
