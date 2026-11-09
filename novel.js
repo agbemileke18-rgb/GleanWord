@@ -108,6 +108,21 @@ async function fetchWorks(category = 'all') {
 async function renderBooksGrid(works) {
     booksGrid.innerHTML = '';
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetBookQuery = urlParams.get('book');
+
+    if (targetBookQuery && !window.__deepLinkOpened) {
+        const matchingWork = works.find(w => w.slug === targetBookQuery || w.id === targetBookQuery);
+        if (matchingWork) {
+            window.__deepLinkOpened = true; // Prevent opening it repeatedly
+            console.log("Found deep-linked book in catalog data:", matchingWork.title);
+            if (typeof openReaderForWork === "function") {
+                openReaderForWork(matchingWork);
+                return; // Skip rendering the grid if we are jumping straight into the reader
+            }
+        }
+    }
+
     const activeSupabase = window.supabaseClient || supabaseClient;
     const { data: { session } } = await activeSupabase.auth.getSession();
 
@@ -2931,53 +2946,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-document.addEventListener("DOMContentLoaded", async () => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const targetBookSlug = urlParams.get('book');
-
-  if (targetBookSlug) {
-    setTimeout(async () => {
-      try {
-        const activeSupabase = window.supabaseClient || supabaseClient;
-        if (!activeSupabase) {
-          console.warn("Supabase client not initialized yet.");
-          return;
-        }
-
-        const { data: work, error } = await activeSupabase
-          .from('works')
-          .select('*')
-          .eq('slug', targetBookSlug)
-          .single();
-
-        if (error || !work) {
-          const { data: workById } = await activeSupabase
-            .from('works')
-            .select('*')
-            .eq('id', targetBookSlug)
-            .single();
-            
-          if (workById && typeof openReaderForWork === "function") {
-            openReaderForWork(workById);
-            return;
-          }
-          console.error("Could not find book for deep link:", targetBookSlug);
-          return;
-        }
-
-        if (typeof openReaderForWork === "function") {
-          console.log(`Opening deep-linked book:`, work.title);
-          openReaderForWork(work);
-        } else {
-          console.warn("openReaderForWork function not found.");
-        }
-      } catch (err) {
-        console.error("Error loading deep-linked book:", err);
-      }
-    }, 1000);
-  }
-});
-
 function generateBookShareLink(bookSlug) {
     const baseUrl = window.location.origin + window.location.pathname;
     return `${baseUrl}?book=${bookSlug}`;
@@ -3003,20 +2971,20 @@ function showShareLinkModal(bookSlug) {
 }
 
 function copyCardLink(link) {
-  navigator.clipboard.writeText(link).then(() => {
-    alert(`🔗 Direct book link copied to clipboard!\n\n${link}`);
-  }).catch(err => {
-    console.error('Failed to copy link: ', err);
-    prompt("Copy your book link below:", link);
-  });
+    navigator.clipboard.writeText(link).then(() => {
+        alert(`🔗 Direct book link copied to clipboard!\n\n${link}`);
+    }).catch(err => {
+        console.error('Failed to copy link: ', err);
+        prompt("Copy your book link below:", link);
+    });
 }
 
 // Attach copyCardLink globally so the HTML onclick attribute can see it
-window.copyCardLink = function(link) {
-  navigator.clipboard.writeText(link).then(() => {
-    alert(`🔗 Direct book link copied to clipboard!\n\n${link}`);
-  }).catch(err => {
-    console.error('Failed to copy link: ', err);
-    prompt("Copy your book link below:", link);
-  });
+window.copyCardLink = function (link) {
+    navigator.clipboard.writeText(link).then(() => {
+        alert(`🔗 Direct book link copied to clipboard!\n\n${link}`);
+    }).catch(err => {
+        console.error('Failed to copy link: ', err);
+        prompt("Copy your book link below:", link);
+    });
 };
