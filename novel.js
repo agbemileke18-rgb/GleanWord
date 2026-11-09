@@ -173,25 +173,33 @@ async function renderBooksGrid(works) {
             card.onclick = () => openReaderForWork(work);
         }
 
-        card.innerHTML = `
-            <!-- Compact cover thumbnail on the left -->
-            <div style="flex-shrink: 0; width: 85px; aspect-ratio: 2/3; overflow: hidden; position: relative; border-radius: 4px;">
-                <img src="${imageSource}" alt="${escapeHtml(work.title)}" style="width: 100%; height: 100%; object-fit: cover;">
-            </div>
+        const bookSlugOrId = work.slug || work.id;
+        const directLink = `${window.location.origin}${window.location.pathname}?book=${bookSlugOrId}`;
 
-            <!-- Title, Author, Badges, and Description on the right -->
-            <div style="flex-grow: 1; display: flex; flex-direction: column; text-align: left; padding-left: 10px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                    <h4 style="margin: 0; color: #f8fafc; font-size: 0.95rem; font-weight: 600;">${escapeHtml(work.title)}</h4>
-                    ${badgeHTML}
-                </div>
-                <span style="font-size: 0.75rem; color: #38bdf8; font-weight: 500;">By ${escapeHtml(authorName)}</span>
-                <p style="font-size: 0.78rem; color: #94a3b8; margin: 4px 0 0 0; line-height: 1.3;">${escapeHtml(descriptionText)}</p>
-                <div>
-                    ${buttonActionHTML}
-                </div>
-            </div>
-        `;
+        card.innerHTML = `
+      <!-- Compact cover thumbnail on the left -->
+      <div style="flex-shrink: 0; width: 85px; aspect-ratio: 2/3; overflow: hidden; position: relative; border-radius: 4px;">
+        <img src="${imageSource}" alt="${escapeHtml(work.title)}" style="width: 100%; height: 100%; object-fit: cover;" />
+      </div>
+
+      <!-- Title, Author, Badges, and Description on the right -->
+      <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <h4 style="margin: 0; color: #f8fafc; font-size: 0.95rem;">${escapeHtml(work.title)}</h4>
+          ${badgeHTML}
+        </div>
+        <span style="font-size: 0.75rem; color: #38bdf8;">By ${escapeHtml(work.author || 'Ann Alani')}</span>
+        <p style="font-size: 0.75rem; color: #94a3b8; margin: 4px 0;">${escapeHtml(descriptionText)}</p>
+        
+        <!-- Action buttons including the new Copy Link button -->
+        <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+          <div style="flex: 1;">${buttonActionHTML}</div>
+          <button onclick="event.stopPropagation(); copyCardLink('${directLink}')" title="Copy Direct Book Link" style="background: transparent; border: 1px solid #444; color: #d4af37; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; white-space: nowrap;">
+            🔗 Copy Link
+          </button>
+        </div>
+      </div>
+    `;
 
         booksGrid.appendChild(card);
     });
@@ -319,16 +327,16 @@ function renderCurrentChapter() {
             `;
         }
 
-       if (currentChapterIndex === currentWorkChapters.length - 1) {
-    // Debug what's actually in window.currentwork
-    console.log("Current Work Object:", window.currentwork);
+        if (currentChapterIndex === currentWorkChapters.length - 1) {
+            // Debug what's actually in window.currentwork
+            console.log("Current Work Object:", window.currentwork);
 
-    // Robust check for boolean true, string "true", or number 1
-    const rawCompleted = window.currentwork ? window.currentwork.is_completed : false;
-    const isBookFinished = rawCompleted === true || rawCompleted === 'true' || rawCompleted === 1;
+            // Robust check for boolean true, string "true", or number 1
+            const rawCompleted = window.currentwork ? window.currentwork.is_completed : false;
+            const isBookFinished = rawCompleted === true || rawCompleted === 'true' || rawCompleted === 1;
 
-    if (isBookFinished) {
-        contentHTML += `
+            if (isBookFinished) {
+                contentHTML += `
             <div class="chapter-end-card book-finished-card">
                 <span class="end-icon">📚✨</span>
                 <h3>The End</h3>
@@ -336,8 +344,8 @@ function renderCurrentChapter() {
                 <div class="schedule-badge finished-badge" style="background: #28a745; color: #fff;">🎉 Complete Work</div>
             </div>
         `;
-    } else {
-        contentHTML += `
+            } else {
+                contentHTML += `
             <div class="chapter-end-card">
                 <span class="end-icon">🎉</span>
                 <h3>You're All Caught Up!</h3>
@@ -345,8 +353,8 @@ function renderCurrentChapter() {
                 <div class="schedule-badge">📅 New ${pluralLabel} drop Every Saturday!</div>
             </div>
         `;
-    }
-}
+            }
+        }
 
         readerBody.innerHTML = contentHTML;
 
@@ -1334,7 +1342,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 currentUserId
             );
 
-            alert('Thank you! Your submission has been normalized and sent for admin review. It will appear in the library once approved.');
+            // 1. Generate the slug and direct link from the submitted title
+            const bookSlug = title.toLowerCase().trim()
+                .replace(/[^a-z0-9 -]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-');
+
+            const directLink = `${window.location.origin}${window.location.pathname}?book=${bookSlug}`;
+
+            // 2. Automatically copy it to clipboard for them
+            navigator.clipboard.writeText(directLink).catch(err => console.log('Clipboard error:', err));
+
+            // 3. Display success message along with their direct link
+            alert(`Thank you! Your submission has been sent for admin review.\n\n🔗 Your Direct Promotion Link has been copied to your clipboard:\n${directLink}`);
 
             resourceForm.reset();
             if (addResourceModal) addResourceModal.style.display = 'none';
@@ -2182,7 +2202,7 @@ async function openBookReader(workId) {
     }
 
     if (typeof showReaderModal === 'function') {
-        window.currentwork = work; 
+        window.currentwork = work;
         showReaderModal(work, chapters);
     }
 
@@ -2859,56 +2879,113 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 document.addEventListener("DOMContentLoaded", () => {
-  const becomeAuthorBtn = document.getElementById("becomeAuthorBtn");
-  const authorGuideModal = document.getElementById("authorGuideModal");
-  const closeAuthorModal = document.getElementById("closeAuthorModal");
-  const buyGuideBtn = document.getElementById("buyGuideBtn");
+    const becomeAuthorBtn = document.getElementById("becomeAuthorBtn");
+    const authorGuideModal = document.getElementById("authorGuideModal");
+    const closeAuthorModal = document.getElementById("closeAuthorModal");
+    const buyGuideBtn = document.getElementById("buyGuideBtn");
 
-  if (becomeAuthorBtn && authorGuideModal) {
-    becomeAuthorBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      authorGuideModal.style.display = "flex";
-      authorGuideModal.classList.remove("hidden");
-    });
-  }
-
-  if (closeAuthorModal && authorGuideModal) {
-    closeAuthorModal.addEventListener("click", () => {
-      authorGuideModal.style.display = "none";
-      authorGuideModal.classList.add("hidden");
-    });
-  }
-
-  window.addEventListener("click", (e) => {
-    if (e.target === authorGuideModal) {
-      authorGuideModal.style.display = "none";
-      authorGuideModal.classList.add("hidden");
+    if (becomeAuthorBtn && authorGuideModal) {
+        becomeAuthorBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            authorGuideModal.style.display = "flex";
+            authorGuideModal.classList.remove("hidden");
+        });
     }
-  });
 
-  if (buyGuideBtn) {
-    buyGuideBtn.addEventListener("click", () => {
-      authorGuideModal.style.display = "none";
-      authorGuideModal.classList.add("hidden");
-      
-      const handbookSlug = 'welcome-author-the-official-gleanword-handbook';
+    if (closeAuthorModal && authorGuideModal) {
+        closeAuthorModal.addEventListener("click", () => {
+            authorGuideModal.style.display = "none";
+            authorGuideModal.classList.add("hidden");
+        });
+    }
 
-      // Trigger your app's actual Paystack purchase/paywall modal
-      if (typeof openPaywallModal === "function") {
-        openPaywallModal(handbookSlug);
-      } else {
-        // Fallback: automatically click the buy button on the handbook card on your homepage
-        const handbookCard = document.querySelector(`[data-slug="${handbookSlug}"]`) || 
-                             document.querySelector('.book-card');
-        const buyBtn = handbookCard ? handbookCard.querySelector('.buy-btn, .subscribe-btn, button') : null;
-        
-        if (buyBtn) {
-          buyBtn.click();
-        } else {
-          console.log("Triggering Paystack checkout for handbook...");
-          alert("Please use the 'Buy Work - ₦100' button directly on the handbook card on your homepage to open Paystack.");
+    window.addEventListener("click", (e) => {
+        if (e.target === authorGuideModal) {
+            authorGuideModal.style.display = "none";
+            authorGuideModal.classList.add("hidden");
         }
-      }
     });
-  }
+
+    if (buyGuideBtn) {
+        buyGuideBtn.addEventListener("click", () => {
+            authorGuideModal.style.display = "none";
+            authorGuideModal.classList.add("hidden");
+
+            const handbookSlug = 'welcome-author-the-official-gleanword-handbook';
+
+            if (typeof openPaywallModal === "function") {
+                openPaywallModal(handbookSlug);
+            } else {
+                const handbookCard = document.querySelector(`[data-slug="${handbookSlug}"]`) ||
+                    document.querySelector('.book-card');
+                const buyBtn = handbookCard ? handbookCard.querySelector('.buy-btn, .subscribe-btn, button') : null;
+
+                if (buyBtn) {
+                    buyBtn.click();
+                } else {
+                    console.log("Triggering Paystack checkout for handbook...");
+                    alert("Please use the 'Buy Work - ₦100' button directly on the handbook card on your homepage to open Paystack.");
+                }
+            }
+        });
+    }
 });
+
+document.addEventListener("DOMContentLoaded", () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetBookSlug = urlParams.get('book');
+
+    if (targetBookSlug) {
+        setTimeout(() => {
+            if (typeof openReaderForWork === "function") {
+                console.log(`Deep link detected for book: ${targetBookSlug}`);
+                openReaderForWork(targetBookSlug);
+            } else {
+                console.warn("openReaderForWork function not found yet.");
+            }
+        }, 800);
+    }
+});
+
+function generateBookShareLink(bookSlug) {
+    const baseUrl = window.location.origin + window.location.pathname;
+    return `${baseUrl}?book=${bookSlug}`;
+}
+
+function showShareLinkModal(bookSlug) {
+    const container = document.getElementById("bookShareContainer");
+    const inputField = document.getElementById("shareLinkInput");
+    const copyBtn = document.getElementById("copyShareLinkBtn");
+
+    if (container && inputField) {
+        const directLink = generateBookShareLink(bookSlug);
+        inputField.value = directLink;
+        container.style.display = "block";
+
+        copyBtn.onclick = () => {
+            navigator.clipboard.writeText(directLink).then(() => {
+                copyBtn.textContent = "Copied!";
+                setTimeout(() => { copyBtn.textContent = "Copy"; }, 2000);
+            });
+        };
+    }
+}
+
+function copyCardLink(link) {
+  navigator.clipboard.writeText(link).then(() => {
+    alert(`🔗 Direct book link copied to clipboard!\n\n${link}`);
+  }).catch(err => {
+    console.error('Failed to copy link: ', err);
+    prompt("Copy your book link below:", link);
+  });
+}
+
+// Attach copyCardLink globally so the HTML onclick attribute can see it
+window.copyCardLink = function(link) {
+  navigator.clipboard.writeText(link).then(() => {
+    alert(`🔗 Direct book link copied to clipboard!\n\n${link}`);
+  }).catch(err => {
+    console.error('Failed to copy link: ', err);
+    prompt("Copy your book link below:", link);
+  });
+};
