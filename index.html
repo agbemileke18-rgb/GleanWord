@@ -23,7 +23,7 @@
         <button class="nav-btn" data-category="poetry">Poetry</button>
         <button class="nav-btn" data-category="grammar">Grammar</button>
         <button class="nav-btn" data-category="literature">Literature</button>
-        <button class="nav-btn" data-category="guide">guide</button>
+        <button class="nav-btn" data-category="guide">Guide</button>
 
       </nav>
 
@@ -131,6 +131,30 @@
     </div>
   </main>
 
+  <div id="authorGuideModal" class="modal-overlay hidden" style="display: none;">
+    <div class="gleanword-modal-box">
+      <h2>Join the Gleanword Creator Community</h2>
+      <p>
+        To start publishing on Gleanword, you must first become a verified, authenticated user.
+        To unlock creator permissions, you can either subscribe to a monthly plan or make an initial purchase (minimum
+        ₦100).
+        The most efficient path is to buy our dedicated Onboarding Guide for ₦100! You can find it under the "Guide" category.
+      </p>
+
+      <h3>Benefits of the ₦100 Guide:</h3>
+      <ol>
+        <li><strong>Immediate Account Activation:</strong> Log in, authenticate, and gain upload rights instantly.</li>
+        <li><strong>Comprehensive Publishing Guide:</strong> Learn the exact steps to manage chapters and books.</li>
+        <li><strong>Access to Vital Future Updates:</strong> Stay informed with updated publishing logic.</li>
+      </ol>
+
+      <div class="gleanword-modal-buttons">
+        <button id="buyGuideBtn" class="modal-btn-primary">Buy Guide (₦100)</button>
+        <button id="closeAuthorModal" class="modal-btn-secondary">I'll view other options.</button>
+      </div>
+    </div>
+  </div>
+
   <div id="paywall-modal" class="modal-overlay hidden">
     <div class="modal-card">
       <h2>Unlock Unfinished Works</h2>
@@ -158,6 +182,7 @@
       <hr class="drawer-divider" />
 
       <nav class="drawer-menu">
+        <a href="#" id="becomeAuthorBtn" class="drawer-item" style="color: #d4af37; font-weight: 600;">✏️ Become an Author</a>
         <a href="#" id="navProfile" class="drawer-item">👤 Profile & Settings</a>
         <a href="#" id="drawer-reading-list-btn" class="drawer-item">📖 My Reading List</a>
         <a href="#" id="drawer-reader-preferences-btn" class="drawer-item">⚙️ Reader Preferences</a>

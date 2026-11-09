@@ -2857,3 +2857,58 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+
+document.addEventListener("DOMContentLoaded", () => {
+  const becomeAuthorBtn = document.getElementById("becomeAuthorBtn");
+  const authorGuideModal = document.getElementById("authorGuideModal");
+  const closeAuthorModal = document.getElementById("closeAuthorModal");
+  const buyGuideBtn = document.getElementById("buyGuideBtn");
+
+  if (becomeAuthorBtn && authorGuideModal) {
+    becomeAuthorBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      authorGuideModal.style.display = "flex";
+      authorGuideModal.classList.remove("hidden");
+    });
+  }
+
+  if (closeAuthorModal && authorGuideModal) {
+    closeAuthorModal.addEventListener("click", () => {
+      authorGuideModal.style.display = "none";
+      authorGuideModal.classList.add("hidden");
+    });
+  }
+
+  window.addEventListener("click", (e) => {
+    if (e.target === authorGuideModal) {
+      authorGuideModal.style.display = "none";
+      authorGuideModal.classList.add("hidden");
+    }
+  });
+
+  if (buyGuideBtn) {
+    buyGuideBtn.addEventListener("click", () => {
+      authorGuideModal.style.display = "none";
+      authorGuideModal.classList.add("hidden");
+      
+      const handbookSlug = 'welcome-author-the-official-gleanword-handbook';
+
+      // Trigger your app's actual Paystack purchase/paywall modal
+      if (typeof openPaywallModal === "function") {
+        openPaywallModal(handbookSlug);
+      } else {
+        // Fallback: automatically click the buy button on the handbook card on your homepage
+        const handbookCard = document.querySelector(`[data-slug="${handbookSlug}"]`) || 
+                             document.querySelector('.book-card');
+        const buyBtn = handbookCard ? handbookCard.querySelector('.buy-btn, .subscribe-btn, button') : null;
+        
+        if (buyBtn) {
+          buyBtn.click();
+        } else {
+          console.log("Triggering Paystack checkout for handbook...");
+          alert("Please use the 'Buy Work - ₦100' button directly on the handbook card on your homepage to open Paystack.");
+        }
+      }
+    });
+  }
+});

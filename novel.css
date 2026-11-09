@@ -911,3 +911,53 @@ body.light-mode .menu-toggle-btn,
     page-break-inside: avoid;
     margin-bottom: 0.8rem;       /* Keeps spacing clean */
 }
+
+/* Ensure the modal overlay covers the screen solidly */
+.modal-overlay,
+.gleanword-modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.85); /* Darker backdrop */
+  z-index: 99999;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+/* Give the modal box a SOLID background so text is crystal clear */
+.gleanword-modal-box {
+  background-color: #141414 !important; /* Solid dark background */
+  color: #ffffff !important;
+  width: 100%;
+  max-width: 500px;
+  padding: 30px;
+  border-radius: 14px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+  border: 1px solid #333333;
+  z-index: 100000;
+  position: relative;
+}
+
+.gleanword-modal-box h2 {
+  color: #ffffff;
+  font-size: 20px;
+  margin-bottom: 15px;
+}
+
+.gleanword-modal-box p, 
+.gleanword-modal-box ol {
+  color: #dddddd;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 15px;
+}
+
+.gleanword-modal-box h3 {
+  color: #d4af37;
+  font-size: 15px;
+  margin-bottom: 8px;
+}
