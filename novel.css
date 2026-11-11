@@ -134,7 +134,6 @@ body {
     width: 100%;
     height: 100%;
     object-fit: contain;
-    /* Keeps 100% of the image details without cropping or stretching */
     display: block;
 }
 
@@ -287,7 +286,6 @@ body.dark-mode #theme-toggle svg path {
 #reader-body {
     column-width: 100vw;
     column-gap: 20px;
-    /* height: 75vh; */
 
     overflow-x: hidden;
     overflow-y: hidden;
@@ -489,13 +487,11 @@ body {
     display: none;
 }
 
-/* Enforce snap points and prevent paragraphs from breaking across pages */
 #reader-body>* {
     scroll-snap-align: start;
     break-inside: avoid;
 }
 
-/* 4. FIXED BOTTOM NAVIGATION BAR */
 .chapter-nav {
     flex-shrink: 0;
     display: flex;
@@ -507,7 +503,6 @@ body {
     box-sizing: border-box;
 }
 
-/* 5. SMALL SCREEN FONT SCALING */
 @media (max-height: 667px) {
     #reader-body p {
         font-size: 0.95rem;
@@ -515,16 +510,13 @@ body {
     }
 }
 
-/* 4. DARK MODE SUPPORT OVERRIDES */
 body.dark-mode #reader-view,
 body.dark,
 [data-theme="dark"] #reader-view,
 body.dark-mode .chapter-nav,
 [data-theme="dark"] .chapter-nav {
     background-color: #121212 !important;
-    /* Dark mode background */
     color: #ffffff !important;
-    /* Dark mode text */
 }
 
 #reader-subscribe-btn {
@@ -586,7 +578,7 @@ body.light-mode .menu-toggle-btn,
   display: flex;
   flex-direction: column;
   padding: 2.5rem 1.2rem;
-  overflow-y: auto; /* 👈 Add this line to enable vertical scrolling */
+  overflow-y: auto; 
 }
 
 .sidebar-drawer.open {
@@ -679,7 +671,6 @@ body.light-mode .menu-toggle-btn,
         padding: 10px 14px;
     }
 
-    /* Row 1 Layout */
     .menu-toggle-btn {
         flex-shrink: 0;
     }
@@ -809,10 +800,8 @@ body.light-mode .menu-toggle-btn,
     margin-bottom: 2rem;
 }
 
-/* End Marker Accent */
 .chapter-marker.chapter-end {
     color: #8a8a9e;
-    /* Muted slate text */
     margin-top: 3.5rem;
     margin-bottom: 2rem;
 }
@@ -903,17 +892,16 @@ body.light-mode .menu-toggle-btn,
 
 #reader-body ul, 
 #reader-body ol {
-    list-style-position: inside; /* Forces bullets and numbers to stay inside the text flow */
-    padding-left: 0;             /* Adjust padding since it's now inside */
+    list-style-position: inside; 
+    padding-left: 0;             
 }
 
 #reader-body li {
-    break-inside: avoid;         /* Keeps the entire list item from splitting */
+    break-inside: avoid;         
     page-break-inside: avoid;
-    margin-bottom: 0.8rem;       /* Keeps spacing clean */
+    margin-bottom: 0.8rem;       
 }
 
-/* Ensure the modal overlay covers the screen solidly */
 .modal-overlay,
 .gleanword-modal-overlay {
   display: none;
@@ -922,16 +910,15 @@ body.light-mode .menu-toggle-btn,
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.85); /* Darker backdrop */
+  background-color: rgba(0, 0, 0, 0.85); 
   z-index: 99999;
   justify-content: center;
   align-items: center;
   padding: 20px;
 }
 
-/* Give the modal box a SOLID background so text is crystal clear */
 .gleanword-modal-box {
-  background-color: #141414 !important; /* Solid dark background */
+  background-color: #141414 !important; 
   color: #ffffff !important;
   width: 100%;
   max-width: 500px;
@@ -963,7 +950,6 @@ body.light-mode .menu-toggle-btn,
   margin-bottom: 8px;
 }
 
-/* Modal Overlay / Backdrop */
 #book-selection-modal {
   position: fixed;
   inset: 0;
@@ -975,10 +961,9 @@ body.light-mode .menu-toggle-btn,
   z-index: 1000;
 }
 
-/* Modal Content Card */
 #book-selection-modal .modal-content,
 .book-selection-card {
-  background: #121212; /* Matches your dark theme */
+  background: #121212; 
   color: #ffffff;
   padding: 2rem;
   border-radius: 12px;
@@ -990,7 +975,6 @@ body.light-mode .menu-toggle-btn,
   gap: 1rem;
 }
 
-/* Book Picker Item Buttons */
 .book-picker-list {
   display: flex;
   flex-direction: column;
@@ -1022,4 +1006,31 @@ body.light-mode .menu-toggle-btn,
 .book-select-item .muted-text {
   font-size: 0.85rem;
   color: #aaaaaa;
+}
+
+#author-editor-modal .modal-content > div[style*="display: flex"] {
+  flex-direction: column !important;
+  gap: 16px !important;
+}
+
+#author-editor-modal div[style*="width: 280px"] {
+  width: 100% !important;
+  border-right: none !important;
+  border-bottom: 1px solid var(--border-color, #333);
+  padding-bottom: 12px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+@media (min-width: 768px) {
+  #author-editor-modal .modal-content > div[style*="display: flex"] {
+    flex-direction: row !important;
+  }
+  
+  #author-editor-modal div[style*="width: 100%"] {
+    width: 280px !important;
+    border-bottom: none !important;
+    border-right: 1px solid var(--border-color, #333) !important;
+    max-height: none;
+  }
 }

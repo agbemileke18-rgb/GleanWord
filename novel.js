@@ -117,7 +117,7 @@ async function renderBooksGrid(works) {
     if (targetBookQuery && !window.__deepLinkOpened) {
         const matchingWork = works.find(w => w.slug === targetBookQuery || w.id === targetBookQuery);
         if (matchingWork) {
-            window.__deepLinkOpened = true; // Prevent opening it repeatedly
+            window.__deepLinkOpened = true; 
             if (typeof openReaderForWork === "function") {
                 openReaderForWork(matchingWork);
             }
@@ -1354,7 +1354,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 currentUserId
             );
 
-            // 1. Generate the slug and direct link from the submitted title
             const bookSlug = title.toLowerCase().trim()
                 .replace(/[^a-z0-9 -]/g, '')
                 .replace(/\s+/g, '-')
@@ -1921,13 +1920,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Error checking author works:', worksError.message);
             }
 
-            // Inside your event listener:
             if (userWorks && userWorks.length > 0) {
                 if (userWorks.length === 1) {
                     openAuthorDashboard(userWorks[0]);
                 } else {
-                    window.currentAuthorWorks = userWorks; // Save it
-                    renderBookSelectionModal(userWorks); // Open your custom modal!
+                    window.currentAuthorWorks = userWorks; 
+                    renderBookSelectionModal(userWorks); 
                 }
                 return;
             }
@@ -2116,7 +2114,6 @@ function renderBookSelectionModal(works) {
         return;
     }
 
-    // Render a list/select element with all published titles
     container.innerHTML = `
     <h3>Select a book to edit:</h3>
     <div class="book-picker-list">
@@ -2129,7 +2126,6 @@ function renderBookSelectionModal(works) {
     </div>
   `;
 
-    // Show your modal
     const modal = document.getElementById('book-selection-modal');
     if (modal) modal.style.display = 'flex';
 }
@@ -2284,7 +2280,7 @@ document.addEventListener('click', async (e) => {
         }
 
         if (typeof openReaderForWork === 'function') {
-            window.currentwork = work; // <-- Set it here too!
+            window.currentwork = work; 
             openReaderForWork(work);
         } else {
             console.error('openReaderForWork function is not defined.');
@@ -3017,7 +3013,6 @@ function copyCardLink(link) {
     });
 }
 
-// Attach copyCardLink globally so the HTML onclick attribute can see it
 window.copyCardLink = function (link) {
     navigator.clipboard.writeText(link).then(() => {
         alert(`🔗 Direct book link copied to clipboard!\n\n${link}`);
