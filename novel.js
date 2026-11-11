@@ -80,7 +80,7 @@ async function fetchWorks(category = 'all') {
         let query = supabaseClient
             .from('works')
             .select('*, profiles!author_id(paystack_subaccount_code)')
-            .in('status', ['approved', 'Approved']) 
+            .in('status', ['approved', 'Approved'])
             .order('created_at', { ascending: false });
 
         if (category && category !== 'all') {
@@ -117,7 +117,7 @@ async function renderBooksGrid(works) {
     if (targetBookQuery && !window.__deepLinkOpened) {
         const matchingWork = works.find(w => w.slug === targetBookQuery || w.id === targetBookQuery);
         if (matchingWork) {
-            window.__deepLinkOpened = true; 
+            window.__deepLinkOpened = true;
             if (typeof openReaderForWork === "function") {
                 openReaderForWork(matchingWork);
             }
@@ -1924,8 +1924,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (userWorks.length === 1) {
                     openAuthorDashboard(userWorks[0]);
                 } else {
-                    window.currentAuthorWorks = userWorks; 
-                    renderBookSelectionModal(userWorks); 
+                    window.currentAuthorWorks = userWorks;
+                    renderBookSelectionModal(userWorks);
                 }
                 return;
             }
@@ -2107,6 +2107,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+const projectModal = document.getElementById('projectHelpModal');
+const openProjectBtn = document.getElementById('openProjectModalBtn');
+const closeProjectBtn = document.getElementById('closeProjectModalBtn');
+
+if (openProjectBtn && projectModal) {
+    openProjectBtn.addEventListener('click', () => {
+        projectModal.style.display = 'flex';
+    });
+}
+
+if (closeProjectBtn && projectModal) {
+    closeProjectBtn.addEventListener('click', () => {
+        projectModal.style.display = 'none';
+    });
+}
+
+if (projectModal) {
+    projectModal.addEventListener('click', (e) => {
+        if (e.target === projectModal) {
+            projectModal.style.display = 'none';
+        }
+    });
+}
+
 function renderBookSelectionModal(works) {
     const container = document.getElementById('book-selection-container');
     if (!container) {
@@ -2280,7 +2304,7 @@ document.addEventListener('click', async (e) => {
         }
 
         if (typeof openReaderForWork === 'function') {
-            window.currentwork = work; 
+            window.currentwork = work;
             openReaderForWork(work);
         } else {
             console.error('openReaderForWork function is not defined.');

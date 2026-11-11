@@ -198,6 +198,7 @@
         <a href="#" id="becomeAuthorBtn" class="drawer-item" style="color: #d4af37; font-weight: 600;">✏️ Become an
           Author</a>
         <a href="#" id="navProfile" class="drawer-item">👤 Profile & Settings</a>
+        <a href="#" id="openProjectModalBtn" class="drawer-item">🎓 Get Project Help</a>
         <a href="#" id="drawer-reading-list-btn" class="drawer-item">📖 My Reading List</a>
         <a href="#" id="drawer-reader-preferences-btn" class="drawer-item">⚙️ Reader Preferences</a>
         <a href="#" id="drawer-theme-toggle" class="drawer-item">🌙 Dark Mode Toggle</a>
@@ -207,6 +208,50 @@
       </nav>
     </div>
   </aside>
+
+  <div id="projectHelpModal"
+    style="display: none; position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(0, 0, 0, 0.75) !important; z-index: 99999 !important; justify-content: center !important; align-items: center !important; padding: 16px !important; box-sizing: border-box !important;">
+    <div
+      style="background: #1e1e24 !important; border: 1px solid #333333 !important; border-radius: 12px !important; width: 100% !important; max-width: 480px !important; padding: 24px !important; box-sizing: border-box !important; position: relative !important; color: #e2e8f0 !important; font-family: inherit !important; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5) !important; max-height: 90vh !important; overflow-y: auto !important;">
+
+      <button id="closeProjectModalBtn"
+        style="background: transparent !important; border: none !important; color: #94a3b8 !important; font-size: 1.4rem !important; cursor: pointer !important; position: absolute !important; top: 16px !important; right: 16px !important; line-height: 1 !important;">✕</button>
+
+      <h3
+        style="margin: 0 0 12px 0 !important; font-size: 1.25rem !important; font-weight: 700 !important; color: #ffffff !important;">
+        Get Professional Project Assistance 🎓</h3>
+
+      <p
+        style="margin: 0 0 12px 0 !important; font-size: 0.9rem !important; line-height: 1.5 !important; color: #94a3b8 !important;">
+        As a graduate of linguistics, one of the biggest hurdles I faced during my final year project was tracking down
+        clean data and finding the right guidance to write a stellar thesis.
+      </p>
+
+      <p
+        style="margin: 0 0 16px 0 !important; font-size: 0.9rem !important; line-height: 1.5 !important; color: #94a3b8 !important;">
+        Overcoming those challenges and scoring an <strong>A</strong> in my project is the exact reason I built
+        gleanword. If you are struggling with data collection, theoretical analysis, or drafting your linguistics
+        project (whether in syntax, semantics, phonology, or sociolinguistics), you don't have to walk alone. Let's
+        handle the heavy lifting for you.
+      </p>
+
+      <div
+        style="background: rgba(99, 102, 241, 0.08) !important; border-left: 3px solid #6366f1 !important; padding: 12px 14px !important; border-radius: 6px !important; margin-bottom: 20px !important;">
+        <p
+          style="margin: 0 !important; font-size: 0.85rem !important; line-height: 1.4 !important; color: #cbd5e1 !important;">
+          📚 <strong>Looking to deepen your understanding?</strong> Explore our published grammar and academic books
+          right here on gleanword to strengthen your research and gain further knowledge.
+        </p>
+      </div>
+
+      <a href="https://wa.me/2349036643748?text=Hi%20Ann,%20I%20read%20about%20your%20linguistics%20project%20services%20on%20gleanword%20and%20I%20need%20help."
+        target="_blank"
+        style="display: block !important; text-align: center !important; background: #25D366 !important; color: #ffffff !important; font-weight: 600 !important; font-size: 0.95rem !important; padding: 12px 20px !important; border-radius: 8px !important; text-decoration: none !important; box-sizing: border-box !important;">
+        💬 Chat on WhatsApp for Inquiries
+      </a>
+
+    </div>
+  </div>
 
   <div id="emailModal" class="otp-modal" style="display: none;">
     <div class="otp-modal-content">
@@ -406,10 +451,14 @@
       style="background: #1e1e1e !important; color: #ffffff !important; width: 100vw !important; height: 100vh !important; max-width: none !important; max-height: none !important; margin: 0 !important; border-radius: 0 !important; box-sizing: border-box !important; display: flex !important; flex-direction: column !important; padding: 20px !important; overflow: hidden !important;">
 
       <!-- Compact Header (Fixed mobile title crunch) -->
-<div style="display: flex !important; justify-content: space-between !important; align-items: center !important; height: 32px !important; margin-bottom: 8px !important; padding-bottom: 4px !important; border-bottom: 1px solid #333333 !important; flex-shrink: 0 !important; gap: 10px !important;">
-  <h2 id="editorBookTitle" style="margin: 0 !important; font-size: 0.95rem !important; font-weight: 600 !important; color: #e2e8f0 !important; flex: 1 !important; min-width: 0 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;">Managing Book</h2>
-  <button id="closeAuthorEditorBtn" style="background: transparent !important; border: none !important; color: #94a3b8 !important; font-size: 1.2rem !important; cursor: pointer !important; padding: 0 4px !important; line-height: 1 !important; flex-shrink: 0 !important;">✕</button>
-</div>
+      <div
+        style="display: flex !important; justify-content: space-between !important; align-items: center !important; height: 32px !important; margin-bottom: 8px !important; padding-bottom: 4px !important; border-bottom: 1px solid #333333 !important; flex-shrink: 0 !important; gap: 10px !important;">
+        <h2 id="editorBookTitle"
+          style="margin: 0 !important; font-size: 0.95rem !important; font-weight: 600 !important; color: #e2e8f0 !important; flex: 1 !important; min-width: 0 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;">
+          Managing Book</h2>
+        <button id="closeAuthorEditorBtn"
+          style="background: transparent !important; border: none !important; color: #94a3b8 !important; font-size: 1.2rem !important; cursor: pointer !important; padding: 0 4px !important; line-height: 1 !important; flex-shrink: 0 !important;">✕</button>
+      </div>
 
       <div
         style="display: flex !important; gap: 24px !important; flex: 1 !important; min-height: 0 !important; overflow: hidden !important;">
