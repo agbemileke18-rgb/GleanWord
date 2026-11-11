@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>GleanWord - Novels, Poetry, Grammar & Literature</title>
-  <link rel="stylesheet" href="novel.css?v=55" />
+  <link rel="stylesheet" href="novel.css?v=56" />
   <link rel="manifest" href="manifest.json" />
 </head>
 
@@ -456,6 +456,22 @@
     </div>
   </div>
 
+ <!-- Book selection Modal -->
+<div id="book-selection-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-content" style="background: #121212; color: #ffffff; padding: 2rem; border-radius: 12px; width: 90%; max-width: 450px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; gap: 1rem;">
+    
+    <div id="book-selection-container">
+      <!-- Dynamically injected via renderBookSelectionModal -->
+    </div>
+
+    <!-- Close / Cancel Button placed nicely inside the card content -->
+    <button type="button" id="close-book-selection" onclick="document.getElementById('book-selection-modal').style.display='none'" style="background: #2a2a2a; color: #ffffff; border: none; padding: 0.75rem; border-radius: 8px; cursor: pointer; margin-top: 0.5rem;">
+      Cancel
+    </button>
+
+  </div>
+</div>
+
   <div id="purchased-books-modal" class="modal-overlay"
     style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center;">
     <div class="modal-content"
@@ -473,7 +489,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://js.paystack.co/v1/inline.js"></script>
-  <script type="module" src="./novel.js?v=55"></script>
+  <script type="module" src="./novel.js?v=56"></script>
 </body>
 
 </html>

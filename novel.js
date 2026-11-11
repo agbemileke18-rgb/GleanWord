@@ -1,6 +1,8 @@
 import { normalizeYorubaText } from './utils/normalizeYoruba.js';
 import { saveCorpusText } from './services/corpusService.js';
 
+let currentAuthorWorks = [];
+
 export async function handleTextSubmission(
     supabaseClient,
     rawTitle,
@@ -78,6 +80,7 @@ async function fetchWorks(category = 'all') {
         let query = supabaseClient
             .from('works')
             .select('*, profiles!author_id(paystack_subaccount_code)')
+            .in('status', ['approved', 'Approved']) 
             .order('created_at', { ascending: false });
 
         if (category && category !== 'all') {
@@ -115,10 +118,8 @@ async function renderBooksGrid(works) {
         const matchingWork = works.find(w => w.slug === targetBookQuery || w.id === targetBookQuery);
         if (matchingWork) {
             window.__deepLinkOpened = true; // Prevent opening it repeatedly
-            console.log("Found deep-linked book in catalog data:", matchingWork.title);
             if (typeof openReaderForWork === "function") {
                 openReaderForWork(matchingWork);
-                return; // Skip rendering the grid if we are jumping straight into the reader
             }
         }
     }
@@ -343,10 +344,6 @@ function renderCurrentChapter() {
         }
 
         if (currentChapterIndex === currentWorkChapters.length - 1) {
-            // Debug what's actually in window.currentwork
-            console.log("Current Work Object:", window.currentwork);
-
-            // Robust check for boolean true, string "true", or number 1
             const rawCompleted = window.currentwork ? window.currentwork.is_completed : false;
             const isBookFinished = rawCompleted === true || rawCompleted === 'true' || rawCompleted === 1;
 
@@ -1365,10 +1362,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const directLink = `${window.location.origin}${window.location.pathname}?book=${bookSlug}`;
 
-            // 2. Automatically copy it to clipboard for them
             navigator.clipboard.writeText(directLink).catch(err => console.log('Clipboard error:', err));
 
-            // 3. Display success message along with their direct link
             alert(`Thank you! Your submission has been sent for admin review.\n\n🔗 Your Direct Promotion Link has been copied to your clipboard:\n${directLink}`);
 
             resourceForm.reset();
@@ -1926,8 +1921,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Error checking author works:', worksError.message);
             }
 
+            // Inside your event listener:
             if (userWorks && userWorks.length > 0) {
-                openAuthorDashboard(userWorks[0]);
+                if (userWorks.length === 1) {
+                    openAuthorDashboard(userWorks[0]);
+                } else {
+                    window.currentAuthorWorks = userWorks; // Save it
+                    renderBookSelectionModal(userWorks); // Open your custom modal!
+                }
                 return;
             }
 
@@ -2107,6 +2108,44 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+function renderBookSelectionModal(works) {
+    const container = document.getElementById('book-selection-container');
+    if (!container) {
+        console.error("Element with id 'book-selection-container' not found in HTML.");
+        return;
+    }
+
+    // Render a list/select element with all published titles
+    container.innerHTML = `
+    <h3>Select a book to edit:</h3>
+    <div class="book-picker-list">
+      ${works.map(work => `
+        <button class="book-select-item" type="button" onclick="selectBookToEdit('${work.id}')">
+          <strong>${work.title}</strong>
+          <span class="muted-text">(${work.category || 'General'})</span>
+        </button>
+      `).join('')}
+    </div>
+  `;
+
+    // Show your modal
+    const modal = document.getElementById('book-selection-modal');
+    if (modal) modal.style.display = 'flex';
+}
+
+window.selectBookToEdit = function (workId) {
+    const selectedWork = window.currentAuthorWorks.find(w => String(w.id) === String(workId));
+
+    const modal = document.getElementById('book-selection-modal');
+    if (modal) modal.style.display = 'none';
+
+    if (selectedWork) {
+        openAuthorDashboard(selectedWork);
+    } else {
+        console.error("Could not find matching work for ID:", workId);
+    }
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     const btnViewPurchases = document.getElementById('btnViewPurchases');
@@ -2938,7 +2977,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (buyBtn) {
                     buyBtn.click();
                 } else {
-                    console.log("Triggering Paystack checkout for handbook...");
                     alert("Please use the 'Buy Work - ₦100' button directly on the handbook card on your homepage to open Paystack.");
                 }
             }
