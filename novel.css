@@ -1009,13 +1009,11 @@ body.light-mode .menu-toggle-btn,
 }
 
 @media (max-width: 768px) {
-  /* Stack the chapters sidebar and editor vertically only on phones */
   #author-editor-modal .modal-content > div[style*="display: flex"] {
     flex-direction: column !important;
     gap: 16px !important;
   }
 
-  /* Make the chapters list take full width instead of fixed 280px */
   #author-editor-modal div[style*="width: 280px"] {
     width: 100% !important;
     border-right: none !important;
