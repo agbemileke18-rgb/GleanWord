@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>GleanWord - Novels, Poetry, Grammar & Literature</title>
-  <link rel="stylesheet" href="novel.css?v=57" />
+  <link rel="stylesheet" href="novel.css?v=58" />
   <link rel="manifest" href="manifest.json" />
 </head>
 
@@ -399,47 +399,67 @@
     </div>
   </div>
 
- <div id="author-editor-modal" class="modal-overlay" style="display: none !important; position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(0,0,0,0.9) !important; z-index: 99999 !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important;">
-  
-  <div class="modal-content" style="background: #1e1e1e !important; color: #ffffff !important; width: 100vw !important; height: 100vh !important; max-width: none !important; max-height: none !important; margin: 0 !important; border-radius: 0 !important; box-sizing: border-box !important; display: flex !important; flex-direction: column !important; padding: 20px !important; overflow: hidden !important;">
-    
-<div style="display: flex !important; justify-content: space-between !important; align-items: center !important; height: 32px !important; margin-bottom: 8px !important; padding-bottom: 4px !important; border-bottom: 1px solid #333333 !important; flex-shrink: 0 !important;">
-  <h2 id="editorBookTitle" style="margin: 0 !important; font-size: 0.95rem !important; font-weight: 600 !important; color: #e2e8f0 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;">Managing Book</h2>
-  <button id="closeAuthorEditorBtn" style="background: transparent !important; border: none !important; color: #94a3b8 !important; font-size: 1.2rem !important; cursor: pointer !important; padding: 0 4px !important; line-height: 1 !important;">✕</button>
+  <div id="author-editor-modal" class="modal-overlay"
+    style="display: none !important; position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(0,0,0,0.9) !important; z-index: 99999 !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important;">
+
+    <div class="modal-content"
+      style="background: #1e1e1e !important; color: #ffffff !important; width: 100vw !important; height: 100vh !important; max-width: none !important; max-height: none !important; margin: 0 !important; border-radius: 0 !important; box-sizing: border-box !important; display: flex !important; flex-direction: column !important; padding: 20px !important; overflow: hidden !important;">
+
+      <!-- Compact Header (Fixed mobile title crunch) -->
+<div style="display: flex !important; justify-content: space-between !important; align-items: center !important; height: 32px !important; margin-bottom: 8px !important; padding-bottom: 4px !important; border-bottom: 1px solid #333333 !important; flex-shrink: 0 !important; gap: 10px !important;">
+  <h2 id="editorBookTitle" style="margin: 0 !important; font-size: 0.95rem !important; font-weight: 600 !important; color: #e2e8f0 !important; flex: 1 !important; min-width: 0 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;">Managing Book</h2>
+  <button id="closeAuthorEditorBtn" style="background: transparent !important; border: none !important; color: #94a3b8 !important; font-size: 1.2rem !important; cursor: pointer !important; padding: 0 4px !important; line-height: 1 !important; flex-shrink: 0 !important;">✕</button>
 </div>
 
-    <div style="display: flex !important; gap: 24px !important; flex: 1 !important; min-height: 0 !important; overflow: hidden !important;">
-      
-      <div style="width: 280px !important; border-right: 1px solid #333333 !important; display: flex !important; flex-direction: column !important; padding-right: 16px !important; flex-shrink: 0 !important; min-height: 0 !important;">
-        <h4 style="margin-top: 0 !important; font-size: 0.85rem !important; color: rgba(255,255,255,0.7) !important; text-transform: uppercase !important; letter-spacing: 1px !important; margin-bottom: 12px !important; flex-shrink: 0 !important;">Chapters</h4>
-        
-        <div id="chaptersListContainer" style="flex: 1 !important; overflow-y: auto !important; display: flex !important; flex-direction: column !important; gap: 8px !important; margin-bottom: 16px !important; min-height: 0 !important;">
+      <div
+        style="display: flex !important; gap: 24px !important; flex: 1 !important; min-height: 0 !important; overflow: hidden !important;">
+
+        <div
+          style="width: 280px !important; border-right: 1px solid #333333 !important; display: flex !important; flex-direction: column !important; padding-right: 16px !important; flex-shrink: 0 !important; min-height: 0 !important;">
+          <h4
+            style="margin-top: 0 !important; font-size: 0.85rem !important; color: rgba(255,255,255,0.7) !important; text-transform: uppercase !important; letter-spacing: 1px !important; margin-bottom: 12px !important; flex-shrink: 0 !important;">
+            Chapters</h4>
+
+          <div id="chaptersListContainer"
+            style="flex: 1 !important; overflow-y: auto !important; display: flex !important; flex-direction: column !important; gap: 8px !important; margin-bottom: 16px !important; min-height: 0 !important;">
+          </div>
+
+          <button id="btnAddChapter"
+            style="background: rgba(99, 102, 241, 0.15) !important; color: #818cf8 !important; border: 1px dashed #6366f1 !important; padding: 12px !important; border-radius: 8px !important; font-weight: bold !important; cursor: pointer !important; width: 100% !important; flex-shrink: 0 !important;">+
+            Add New Chapter</button>
         </div>
-        
-        <button id="btnAddChapter" style="background: rgba(99, 102, 241, 0.15) !important; color: #818cf8 !important; border: 1px dashed #6366f1 !important; padding: 12px !important; border-radius: 8px !important; font-weight: bold !important; cursor: pointer !important; width: 100% !important; flex-shrink: 0 !important;">+ Add New Chapter</button>
+
+        <div
+          style="flex: 1 !important; display: flex !important; flex-direction: column !important; gap: 16px !important; min-height: 0 !important; overflow: hidden !important;">
+          <input type="hidden" id="editChapterId">
+
+          <div style="flex-shrink: 0 !important;">
+            <label
+              style="font-size: 0.75rem !important; color: rgba(255,255,255,0.6) !important; display: block !important; margin-bottom: 2px !important;">Chapter
+              Title</label>
+            <input type="text" id="editChapterTitleInput" placeholder="e.g. Chapter 2: The Turning Point"
+              style="width: 100% !important; height: 36px !important; padding: 6px 10px !important; border-radius: 6px !important; background: rgba(255,255,255,0.05) !important; border: 1px solid #333333 !important; color: #ffffff !important; box-sizing: border-box !important;">
+          </div>
+
+          <div
+            style="flex: 1 !important; display: flex !important; flex-direction: column !important; min-height: 0 !important;">
+            <label
+              style="font-size: 0.85rem !important; color: rgba(255,255,255,0.7) !important; display: block !important; margin-bottom: 6px !important; flex-shrink: 0 !important;">Chapter
+              Content</label>
+            <textarea id="editChapterContentInput" placeholder="Write or paste your chapter text here..."
+              style="width: 100% !important; flex: 1 !important; padding: 16px !important; border-radius: 8px !important; background: rgba(255,255,255,0.05) !important; border: 1px solid #333333 !important; color: #ffffff !important; resize: none !important; font-family: inherit !important; box-sizing: border-box !important; min-height: 0 !important;"></textarea>
+          </div>
+
+          <div style="display: flex !important; justify-content: flex-end !important; flex-shrink: 0 !important;">
+            <button id="btnSaveChapter"
+              style="background: #6366f1 !important; color: #ffffff !important; border: none !important; padding: 12px 24px !important; border-radius: 8px !important; font-weight: bold !important; cursor: pointer !important;">Save
+              Chapter Changes</button>
+          </div>
+        </div>
+
       </div>
-
-      <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; gap: 16px !important; min-height: 0 !important; overflow: hidden !important;">
-        <input type="hidden" id="editChapterId">
-        
-<div style="flex-shrink: 0 !important;">
-  <label style="font-size: 0.75rem !important; color: rgba(255,255,255,0.6) !important; display: block !important; margin-bottom: 2px !important;">Chapter Title</label>
-  <input type="text" id="editChapterTitleInput" placeholder="e.g. Chapter 2: The Turning Point" style="width: 100% !important; height: 36px !important; padding: 6px 10px !important; border-radius: 6px !important; background: rgba(255,255,255,0.05) !important; border: 1px solid #333333 !important; color: #ffffff !important; box-sizing: border-box !important;">
-</div>
-
-        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; min-height: 0 !important;">
-          <label style="font-size: 0.85rem !important; color: rgba(255,255,255,0.7) !important; display: block !important; margin-bottom: 6px !important; flex-shrink: 0 !important;">Chapter Content</label>
-          <textarea id="editChapterContentInput" placeholder="Write or paste your chapter text here..." style="width: 100% !important; flex: 1 !important; padding: 16px !important; border-radius: 8px !important; background: rgba(255,255,255,0.05) !important; border: 1px solid #333333 !important; color: #ffffff !important; resize: none !important; font-family: inherit !important; box-sizing: border-box !important; min-height: 0 !important;"></textarea>
-        </div>
-
-        <div style="display: flex !important; justify-content: flex-end !important; flex-shrink: 0 !important;">
-          <button id="btnSaveChapter" style="background: #6366f1 !important; color: #ffffff !important; border: none !important; padding: 12px 24px !important; border-radius: 8px !important; font-weight: bold !important; cursor: pointer !important;">Save Chapter Changes</button>
-        </div>
-      </div>
-
     </div>
   </div>
-</div>
 
   <div id="book-selection-modal" class="modal-overlay" style="display: none;">
     <div class="modal-content"
@@ -474,7 +494,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://js.paystack.co/v1/inline.js"></script>
-  <script type="module" src="./novel.js?v=57"></script>
+  <script type="module" src="./novel.js?v=58"></script>
 </body>
 
 </html>

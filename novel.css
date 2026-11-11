@@ -1009,7 +1009,11 @@ body.light-mode .menu-toggle-btn,
 }
 
 @media (max-width: 768px) {
-  #author-editor-modal .modal-content > div[style*="display: flex"] {
+  #author-editor-modal .modal-content > div:first-child {
+    flex-direction: row !important;
+  }
+
+  #author-editor-modal .modal-content > div:nth-child(2) {
     flex-direction: column !important;
     gap: 16px !important;
   }
