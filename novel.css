@@ -1027,3 +1027,13 @@ body.light-mode .menu-toggle-btn,
     overflow-y: auto;
   }
 }
+
+#comic-editor-panel {
+  display: none;
+  background: #1e242b; /* match your modal inner card background */
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 18px;
+  margin-top: 16px;
+  width: 100%;
+}

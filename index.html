@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>GleanWord - Novels, Poetry, Grammar & Literature</title>
-  <link rel="stylesheet" href="novel.css?v=61" />
+  <link rel="stylesheet" href="novel.css?v=62" />
   <link rel="manifest" href="manifest.json" />
 </head>
 
@@ -378,7 +378,7 @@
             style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></textarea>
         </div>
 
-         <div id="comicUploadContainer"
+        <div id="comicUploadContainer"
           style="display: none; margin-top: 10px; padding: 12px; background: rgba(99, 102, 241, 0.08); border: 1px dashed #6366f1; border-radius: 6px;">
           <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; color: inherit;">
             Comic Pages (Select all page images in order):
@@ -386,7 +386,7 @@
           <input type="file" id="comicFileInput" multiple accept="image/*"
             style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem;" />
         </div>
-  
+
         <div style="margin-top: 10px;">
           <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Short Description /
             Abstract</label>
@@ -417,7 +417,7 @@
               style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
           </div>
         </div>
-       
+
         <button type="submit"
           style="padding: 10px; background: #4f46e5; color: white; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; margin-top: 8px;">Save
           to Corpus</button>
@@ -498,8 +498,8 @@
           style="background: transparent !important; border: none !important; color: #94a3b8 !important; font-size: 1.2rem !important; cursor: pointer !important; padding: 0 4px !important; line-height: 1 !important; flex-shrink: 0 !important;">✕</button>
       </div>
 
-      <div
-        style="display: flex !important; gap: 24px !important; flex: 1 !important; min-height: 0 !important; overflow: hidden !important;">
+      <div id="chapter-editor-panel"
+        style="display: flex; gap: 24px !important; flex: 1 !important; min-height: 0 !important; overflow: hidden !important;">
 
         <div
           style="width: 280px !important; border-right: 1px solid #333333 !important; display: flex !important; flex-direction: column !important; padding-right: 16px !important; flex-shrink: 0 !important; min-height: 0 !important;">
@@ -545,7 +545,17 @@
         </div>
 
       </div>
+
+      <div id="comic-editor-panel" style="display: none; margin-top: 16px;">
+        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 14px;">
+          <input type="file" id="editComicFileInput" accept="image/*" multiple />
+          <button type="button" id="btnAddComicPages">+ Upload / Append Pages</button>
+        </div>
+        <div id="comicPagesListContainer"
+          style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px;"></div>
+      </div>
     </div>
+
   </div>
 
   <div id="book-selection-modal" class="modal-overlay" style="display: none;">
@@ -581,7 +591,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://js.paystack.co/v1/inline.js"></script>
-  <script type="module" src="./novel.js?v=61"></script>
+  <script type="module" src="./novel.js?v=62"></script>
 </body>
 
 </html>

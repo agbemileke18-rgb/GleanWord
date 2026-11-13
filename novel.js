@@ -229,73 +229,73 @@ let currentChapterIndex = 0;
 let currentWorkChapters = [];
 
 async function openReaderForWork(work) {
-  window.currentwork = work;
+    window.currentwork = work;
 
-  catalogView.classList.add('hidden');
-  readerView.classList.remove('hidden');
-  document.querySelector('header')?.classList.add('hidden');
-  window.scrollTo(0, 0);
-  document.getElementById('reader-book-title').textContent = work.title;
+    catalogView.classList.add('hidden');
+    readerView.classList.remove('hidden');
+    document.querySelector('header')?.classList.add('hidden');
+    window.scrollTo(0, 0);
+    document.getElementById('reader-book-title').textContent = work.title;
 
-  const readerBody = document.getElementById('reader-body');
+    const readerBody = document.getElementById('reader-body');
 
-  // 1. RESET readerBody styles so comic styles NEVER bleed into regular books
-  readerBody.style.textAlign = 'left';
-  readerBody.style.overflowY = '';
-  readerBody.style.maxHeight = '';
-  readerBody.style.paddingTop = '';
+    // 1. RESET readerBody styles so comic styles NEVER bleed into regular books
+    readerBody.style.textAlign = 'left';
+    readerBody.style.overflowY = '';
+    readerBody.style.maxHeight = '';
+    readerBody.style.paddingTop = '';
 
-  const isComic = work.category && work.category.toLowerCase() === 'comic';
+    const isComic = work.category && work.category.toLowerCase() === 'comic';
 
-  const chapterTitleEl = document.getElementById('reader-chapter-title');
-  const nextChapterBtn = document.querySelector('#reader-view button[onclick*="next"], .next-chapter-btn'); // adjust selector if needed
-  const fontControls = document.getElementById('font-size-display')?.parentElement;
+    const chapterTitleEl = document.getElementById('reader-chapter-title');
+    const nextChapterBtn = document.querySelector('#reader-view button[onclick*="next"], .next-chapter-btn'); // adjust selector if needed
+    const fontControls = document.getElementById('font-size-display')?.parentElement;
 
-  if (isComic) {
-    if (chapterTitleEl) chapterTitleEl.style.display = 'none';
-    if (fontControls) fontControls.style.visibility = 'hidden';
-    const readerHeader = document.querySelector('#reader-view .reader-header, #reader-book-title')?.parentElement;
-    if (readerHeader) readerHeader.style.marginBottom = '8px';
-    readerBody.style.paddingTop = '0px';
-    readerBody.style.marginTop = '0px';
-  } else {
-    if (chapterTitleEl) chapterTitleEl.style.display = '';
-    if (fontControls) fontControls.style.visibility = 'visible';
-  }
-
-  if (isComic) {
-    readerBody.innerHTML = '<p>Loading comic...</p>';
-    const activeSupabase = window.supabaseClient || supabaseClient;
-
-    const { data: pages, error: pagesError } = await activeSupabase
-      .from('comic_pages')
-      .select('image_url, page_number')
-      .eq('book_id', work.id)
-      .order('page_number', { ascending: true });
-
-    if (pagesError || !pages || pages.length === 0) {
-      return alert('No comic pages found for this work.');
+    if (isComic) {
+        if (chapterTitleEl) chapterTitleEl.style.display = 'none';
+        if (fontControls) fontControls.style.visibility = 'hidden';
+        const readerHeader = document.querySelector('#reader-view .reader-header, #reader-book-title')?.parentElement;
+        if (readerHeader) readerHeader.style.marginBottom = '8px';
+        readerBody.style.paddingTop = '0px';
+        readerBody.style.marginTop = '0px';
+    } else {
+        if (chapterTitleEl) chapterTitleEl.style.display = '';
+        if (fontControls) fontControls.style.visibility = 'visible';
     }
 
-    readerBody.innerHTML = '';
-    readerBody.style.overflowY = 'auto';
-    readerBody.style.maxHeight = '85vh';
-    readerBody.style.textAlign = 'center';
+    if (isComic) {
+        readerBody.innerHTML = '<p>Loading comic...</p>';
+        const activeSupabase = window.supabaseClient || supabaseClient;
 
-    pages.forEach(page => {
-      const img = document.createElement('img');
-      img.src = page.image_url;
-      img.style.width = '100%';
-      img.style.maxWidth = '800px';
-      img.style.height = 'auto';
-      img.style.display = 'block';
-      img.style.margin = '0 auto 16px auto';
-      readerBody.appendChild(img);
-    });
-    return;
-  }
+        const { data: pages, error: pagesError } = await activeSupabase
+            .from('comic_pages')
+            .select('image_url, page_number')
+            .eq('book_id', work.id)
+            .order('page_number', { ascending: true });
 
-  
+        if (pagesError || !pages || pages.length === 0) {
+            return alert('No comic pages found for this work.');
+        }
+
+        readerBody.innerHTML = '';
+        readerBody.style.overflowY = 'auto';
+        readerBody.style.maxHeight = '85vh';
+        readerBody.style.textAlign = 'center';
+
+        pages.forEach(page => {
+            const img = document.createElement('img');
+            img.src = page.image_url;
+            img.style.width = '100%';
+            img.style.maxWidth = '800px';
+            img.style.height = 'auto';
+            img.style.display = 'block';
+            img.style.margin = '0 auto 16px auto';
+            readerBody.appendChild(img);
+        });
+        return;
+    }
+
+
 
     const paywallBanner = document.getElementById('paywall-banner');
     readerBody.innerHTML = '<p>Loading content...</p>';
@@ -852,7 +852,7 @@ fontDecreaseBtn.addEventListener('click', () => {
 function updateFontSize() {
     document.documentElement.style.setProperty('--font-size-reader', `${currentFontSize}px`);
     if (fontSizeLabel) fontSizeLabel.textContent = `${currentFontSize}px`;
-    
+
     // Apply font size directly to reader body and text elements
     const readerBody = document.getElementById('reader-body');
     if (readerBody) {
@@ -1418,149 +1418,149 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (addResourceModal) addResourceModal.style.display = 'none';
     });
 
-  resourceModalForm?.addEventListener('submit', async (e) => {
-  e.preventDefault();
+    resourceModalForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
 
-  const category = document.getElementById('modal-corpus-category').value;
-  const isComic = category && category.toLowerCase() === 'comic';
+        const category = document.getElementById('modal-corpus-category').value;
+        const isComic = category && category.toLowerCase() === 'comic';
 
-  if (isComic && (!selectedComicFiles || selectedComicFiles.length === 0)) {
-    return alert('Please select comic page images to upload.');
-  }
-
-  const submitBtn = resourceModalForm.querySelector('button[type="submit"]');
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Saving work...';
-  }
-
-  try {
-    const activeSupabase = window.supabaseClient || supabaseClient;
-    const { data: { session } } = await activeSupabase.auth.getSession();
-    const currentUserId = session?.user?.id;
-
-    if (!currentUserId) {
-      alert('You must be logged in to publish a work.');
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit'; }
-      return;
-    }
-
-    const title = document.getElementById('modal-corpus-title').value;
-    const author = document.getElementById('modal-corpus-author').value;
-    const description = document.getElementById('modal-corpus-description')?.value;
-    const accessType = document.getElementById('modal-corpus-access')?.value;
-    const price = parseFloat(document.getElementById('modal-corpus-price')?.value) || 0;
-
-    if (isComic) {
-      // --- COMIC UPLOAD PATH ---
-      const generatedSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      
-      const { data: workData, error: workError } = await activeSupabase
-        .from('works')
-        .insert({
-          title,
-          slug: generatedSlug,
-          author,
-          author_id: currentUserId,
-          category: 'comic',
-          description,
-          access_type: accessType,
-          price
-        })
-        .select()
-        .single();
-
-      if (workError) throw workError;
-      const activeWorkId = workData.id;
-
-      if (submitBtn) submitBtn.textContent = 'Uploading comic pages...';
-      const comicFilesArray = Array.from(selectedComicFiles);
-      comicFilesArray.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
-
-      for (let i = 0; i < comicFilesArray.length; i++) {
-        const file = comicFilesArray[i];
-        const pageNum = i + 1;
-        const uniqueFilePath = `${activeWorkId}/chap_1/page_${pageNum}_${Date.now()}`;
-
-        const { error: storageError } = await activeSupabase.storage
-          .from('comic-pages')
-          .upload(uniqueFilePath, file);
-
-        if (storageError) continue;
-
-        const { data: publicUrlData } = activeSupabase.storage
-          .from('comic-pages')
-          .getPublicUrl(uniqueFilePath);
-
-        await activeSupabase
-          .from('comic_pages')
-          .insert({
-            book_id: activeWorkId,
-            chapter_number: 1,
-            page_number: pageNum,
-            image_url: publicUrlData.publicUrl
-          });
-      }
-
-      alert('Comic book and pages successfully stored!');
-      window.location.reload();
-
-    } else {
-      // --- REGULAR NOVEL / TEXT / GRAMMAR UPLOAD PATH ---
-      let coverUrl = '';
-      const fileInput = document.getElementById('modal-corpus-cover');
-      if (fileInput && fileInput.files && fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        const fileName = `cover_${Date.now()}_${Math.random().toString(36).substring(2)}.${file.name.split('.').pop()}`;
-        
-        const { error: uploadError } = await activeSupabase.storage
-          .from('covers')
-          .upload(fileName, file);
-
-        if (uploadError) {
-          alert('Error uploading cover image: ' + uploadError.message);
-          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit'; }
-          return;
+        if (isComic && (!selectedComicFiles || selectedComicFiles.length === 0)) {
+            return alert('Please select comic page images to upload.');
         }
 
-        const { data: publicData } = activeSupabase.storage
-          .from('covers')
-          .getPublicUrl(fileName);
-        coverUrl = publicData.publicUrl;
-      }
+        const submitBtn = resourceModalForm.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Saving work...';
+        }
 
-      const content = document.getElementById('modal-corpus-content').value;
+        try {
+            const activeSupabase = window.supabaseClient || supabaseClient;
+            const { data: { session } } = await activeSupabase.auth.getSession();
+            const currentUserId = session?.user?.id;
 
-      await handleTextSubmission(
-        activeSupabase,
-        title,
-        author,
-        category,
-        content,
-        description,
-        coverUrl,
-        accessType,
-        price,
-        currentUserId
-      );
+            if (!currentUserId) {
+                alert('You must be logged in to publish a work.');
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit'; }
+                return;
+            }
 
-      resourceModalForm.reset();
-      const addResourceModal = document.getElementById('add-resource-modal');
-      if (addResourceModal) addResourceModal.style.display = 'none';
+            const title = document.getElementById('modal-corpus-title').value;
+            const author = document.getElementById('modal-corpus-author').value;
+            const description = document.getElementById('modal-corpus-description')?.value;
+            const accessType = document.getElementById('modal-corpus-access')?.value;
+            const price = parseFloat(document.getElementById('modal-corpus-price')?.value) || 0;
 
-      alert('Thank you! Your submission has been sent.');
-      window.location.reload();
-    }
+            if (isComic) {
+                // --- COMIC UPLOAD PATH ---
+                const generatedSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-  } catch (err) {
-    console.error('Submission error:', err);
-    alert('Failed to save resource. Check console for details.');
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Submit';
-    }
-  }
-});
+                const { data: workData, error: workError } = await activeSupabase
+                    .from('works')
+                    .insert({
+                        title,
+                        slug: generatedSlug,
+                        author,
+                        author_id: currentUserId,
+                        category: 'comic',
+                        description,
+                        access_type: accessType,
+                        price
+                    })
+                    .select()
+                    .single();
+
+                if (workError) throw workError;
+                const activeWorkId = workData.id;
+
+                if (submitBtn) submitBtn.textContent = 'Uploading comic pages...';
+                const comicFilesArray = Array.from(selectedComicFiles);
+                comicFilesArray.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+                for (let i = 0; i < comicFilesArray.length; i++) {
+                    const file = comicFilesArray[i];
+                    const pageNum = i + 1;
+                    const uniqueFilePath = `${activeWorkId}/chap_1/page_${pageNum}_${Date.now()}`;
+
+                    const { error: storageError } = await activeSupabase.storage
+                        .from('comic-pages')
+                        .upload(uniqueFilePath, file);
+
+                    if (storageError) continue;
+
+                    const { data: publicUrlData } = activeSupabase.storage
+                        .from('comic-pages')
+                        .getPublicUrl(uniqueFilePath);
+
+                    await activeSupabase
+                        .from('comic_pages')
+                        .insert({
+                            book_id: activeWorkId,
+                            chapter_number: 1,
+                            page_number: pageNum,
+                            image_url: publicUrlData.publicUrl
+                        });
+                }
+
+                alert('Comic book and pages successfully stored!');
+                window.location.reload();
+
+            } else {
+                // --- REGULAR NOVEL / TEXT / GRAMMAR UPLOAD PATH ---
+                let coverUrl = '';
+                const fileInput = document.getElementById('modal-corpus-cover');
+                if (fileInput && fileInput.files && fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    const fileName = `cover_${Date.now()}_${Math.random().toString(36).substring(2)}.${file.name.split('.').pop()}`;
+
+                    const { error: uploadError } = await activeSupabase.storage
+                        .from('covers')
+                        .upload(fileName, file);
+
+                    if (uploadError) {
+                        alert('Error uploading cover image: ' + uploadError.message);
+                        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit'; }
+                        return;
+                    }
+
+                    const { data: publicData } = activeSupabase.storage
+                        .from('covers')
+                        .getPublicUrl(fileName);
+                    coverUrl = publicData.publicUrl;
+                }
+
+                const content = document.getElementById('modal-corpus-content').value;
+
+                await handleTextSubmission(
+                    activeSupabase,
+                    title,
+                    author,
+                    category,
+                    content,
+                    description,
+                    coverUrl,
+                    accessType,
+                    price,
+                    currentUserId
+                );
+
+                resourceModalForm.reset();
+                const addResourceModal = document.getElementById('add-resource-modal');
+                if (addResourceModal) addResourceModal.style.display = 'none';
+
+                alert('Thank you! Your submission has been sent.');
+                window.location.reload();
+            }
+
+        } catch (err) {
+            console.error('Submission error:', err);
+            alert('Failed to save resource. Check console for details.');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit';
+            }
+        }
+    });
 
     if (typeof updateDrawerSubscriptionState === 'function') {
         updateDrawerSubscriptionState();
@@ -2148,22 +2148,44 @@ document.addEventListener('DOMContentLoaded', () => {
         if (authorEditorModal) {
             authorEditorModal.addEventListener('click', (e) => {
                 if (e.target === authorEditorModal) {
-                    authorEditorModal.style.display = 'none';
-                }
+authorEditorModal.style.setProperty('display', 'none', 'important');                }
             });
         }
     }
 
     let activeEditingWorkId = null;
 
-    function openAuthorDashboard(book) {
+    async function openAuthorDashboard(book) {
+        if (!book || !book.id) return;
+
         activeEditingWorkId = book.id;
+        window.activeEditingWorkId = book.id;
 
-        document.getElementById('editorBookTitle').textContent = `📖 Editing: ${book.title || 'Untitled Work'}`;
-        document.getElementById('author-editor-modal').style.display = 'flex';
+        const titleEl = document.getElementById('editorBookTitle');
+        if (titleEl) {
+            titleEl.textContent = `Editing: ${book.title || ''}`;
+        }
 
-        loadChaptersIntoSidebar(book.id);
+        const modal = document.getElementById('author-editor-modal');
+        if (modal) {
+            modal.style.setProperty('display', 'flex', 'important');
+        }
+
+        const isComic = book.category && book.category.toLowerCase() === 'comic';
+        const chapterPanel = document.getElementById('chapter-editor-panel');
+        const comicPanel = document.getElementById('comic-editor-panel');
+
+        if (isComic) {
+            chapterPanel?.style.setProperty('display', 'none', 'important');
+            comicPanel?.style.setProperty('display', 'block', 'important');
+            await loadComicPagesIntoEditor(book.id);
+        } else {
+            comicPanel?.style.setProperty('display', 'none', 'important');
+            chapterPanel?.style.setProperty('display', 'flex', 'important');
+            await loadChaptersIntoSidebar(book.id);
+        }
     }
+    window.openAuthorDashboard = openAuthorDashboard;
 
     const btnSaveChapter = document.getElementById('btnSaveChapter');
     if (btnSaveChapter) {
@@ -2205,6 +2227,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnAddChapter = document.getElementById('btnAddChapter');
     if (btnAddChapter) {
         btnAddChapter.addEventListener('click', async () => {
+            console.log('btnAddChapter clicked:', {
+                activeEditingWorkId,
+                windowActive: window.activeEditingWorkId,
+                windowCurrentWork: window.currentwork
+            });
+
+            if (!activeEditingWorkId) {
+                activeEditingWorkId = window.activeEditingWorkId || window.currentwork?.id || null;
+            }
             if (!activeEditingWorkId) {
                 alert('No active book selected.');
                 return;
@@ -2293,6 +2324,117 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+});
+
+async function loadComicPagesIntoEditor(bookId) {
+    const container = document.getElementById('comicPagesListContainer');
+    if (!container) return;
+    container.innerHTML = '<p style="opacity: 0.6;">Loading comic pages...</p>';
+
+    const activeSupabase = window.supabaseClient || supabaseClient;
+    const { data: pages, error } = await activeSupabase
+        .from('comic_pages')
+        .select('id, page_number, image_url, chapter_number')
+        .eq('book_id', bookId)
+        .order('page_number', { ascending: true });
+
+    if (error) {
+        console.error('Error loading comic pages:', error);
+        container.innerHTML = '<p style="color: #e66;">Failed to load pages.</p>';
+        return;
+    }
+
+    if (!pages || pages.length === 0) {
+        container.innerHTML = '<p style="opacity: 0.6;">No pages uploaded yet.</p>';
+        return;
+    }
+
+    container.innerHTML = '';
+    pages.forEach((page) => {
+        const card = document.createElement('div');
+        card.style.cssText = 'border: 1px solid #333; border-radius: 8px; padding: 6px; text-align: center;';
+        card.innerHTML = `
+      <img src="${page.image_url}" alt="Page ${page.page_number}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 4px;" />
+      <div style="font-size: 12px; margin: 6px 0;">Page ${page.page_number}</div>
+      <button type="button" data-page-id="${page.id}" class="delete-comic-page-btn" style="font-size: 11px;">Delete</button>
+    `;
+        container.appendChild(card);
+    });
+}
+
+document.getElementById('btnAddComicPages')?.addEventListener('click', async () => {
+    const bookId = activeEditingWorkId || window.activeEditingWorkId;
+    if (!bookId) return alert('No active book selected.');
+
+    const fileInput = document.getElementById('editComicFileInput');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        return alert('Select one or more comic pages first.');
+    }
+
+    const activeSupabase = window.supabaseClient || supabaseClient;
+
+    // Find current max page_number for this book
+    const { data: existing } = await activeSupabase
+        .from('comic_pages')
+        .select('page_number')
+        .eq('book_id', bookId)
+        .order('page_number', { ascending: false })
+        .limit(1);
+
+    let nextPageNum = (existing && existing.length > 0 ? existing[0].page_number : 0) + 1;
+
+    const files = Array.from(fileInput.files).sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+    );
+
+    for (const file of files) {
+        const uniquePath = `${bookId}/chap_1/page_${nextPageNum}_${Date.now()}`;
+        const { error: uploadErr } = await activeSupabase.storage
+            .from('comic-pages')
+            .upload(uniquePath, file);
+
+        if (uploadErr) {
+            console.error(`Failed uploading page ${nextPageNum}:`, uploadErr);
+            continue;
+        }
+
+        const { data: pubData } = activeSupabase.storage
+            .from('comic-pages')
+            .getPublicUrl(uniquePath);
+
+        await activeSupabase.from('comic_pages').insert({
+            book_id: bookId,
+            chapter_number: 1,
+            page_number: nextPageNum,
+            image_url: pubData.publicUrl
+        });
+
+        nextPageNum++;
+    }
+
+    fileInput.value = '';
+    await loadComicPagesIntoEditor(bookId);
+});
+
+document.getElementById('comicPagesListContainer')?.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.delete-comic-page-btn');
+    if (!btn) return;
+
+    const pageId = btn.dataset.pageId;
+    if (!pageId) return;
+
+    const activeSupabase = window.supabaseClient || supabaseClient;
+    const { error } = await activeSupabase
+        .from('comic_pages')
+        .delete()
+        .eq('id', pageId);
+
+    if (error) {
+        console.error('Error deleting page:', error);
+        return alert('Failed to delete page.');
+    }
+
+    await loadComicPagesIntoEditor(activeEditingWorkId || window.activeEditingWorkId);
 });
 
 const projectModal = document.getElementById('projectHelpModal');
@@ -2499,15 +2641,6 @@ document.addEventListener('click', async (e) => {
         }
     }
 });
-
-async function openAuthorDashboard(book) {
-    const activeSupabase = window.supabaseClient || supabaseClient;
-
-    document.getElementById('editorBookTitle').textContent = `📖 Editing: ${book.title || 'Untitled Work'}`;
-    document.getElementById('author-editor-modal').style.display = 'flex';
-
-    await loadChaptersIntoSidebar(book.id);
-}
 
 async function loadChaptersIntoSidebar(workId) {
     const activeSupabase = window.supabaseClient || supabaseClient;
