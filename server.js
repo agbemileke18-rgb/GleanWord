@@ -14,10 +14,29 @@ const supabaseAdmin = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+const BANK_CODE_TO_NAME = {
+  '058': 'Guaranty Trust Bank (GTB)',
+  '057': 'Zenith Bank',
+  '044': 'Access Bank',
+  '033': 'United Bank for Africa (UBA)',
+  '011': 'First Bank of Nigeria',
+  '214': 'First City Monument Bank (FCMB)',
+  '070': 'Fidelity Bank',
+  '035': 'Wema Bank',
+  '232': 'Sterling Bank',
+  '50211': 'Kuda MFB',
+  '50515': 'Moniepoint MFB',
+  '999992': 'OPay',
+  '999991': 'PalmPay'
+};
+
 app.post('/api/create-subaccount', async (req, res) => {
     try {
-        const { userId, businessName, settlementBank, accountNumber } = req.body;
-
+        const { userId, businessName, settlementBank, bankName, accountNumber } = req.body;
+        const resolvedBankName =
+            (bankName && bankName !== settlementBank ? bankName : null) ||
+            BANK_CODE_TO_NAME[String(settlementBank)] ||
+            settlementBank;
         if (!userId || !settlementBank || !accountNumber) {
             return res.status(400).json({ error: 'Missing required bank or user details.' });
         }
@@ -51,7 +70,7 @@ app.post('/api/create-subaccount', async (req, res) => {
             .update({
                 paystack_subaccount_code: subaccountCode,
                 account_number: accountNumber,
-                bank_name: settlementBank
+                bank_name: resolvedBankName
             })
             .eq('id', userId);
 

@@ -1492,14 +1492,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                         .from('comic-pages')
                         .getPublicUrl(uniqueFilePath);
 
-                    await activeSupabase
-                        .from('comic_pages')
-                        .insert({
-                            book_id: activeWorkId,
-                            chapter_number: 1,
-                            page_number: pageNum,
-                            image_url: publicUrlData.publicUrl
-                        });
+                  const { data: insertedPage, error: insertErr } = await activeSupabase
+  .from('comic_pages')
+  .insert({
+    book_id: activeWorkId,
+    chapter_number: 1,
+    page_number: pageNum,
+    image_url: publicUrlData.publicUrl
+  })
+  .select()
+  .single();
+
+if (insertErr) {
+  console.error('Insert error:', insertErr);
+}
                 }
 
                 alert('Comic book and pages successfully stored!');
@@ -2353,11 +2359,19 @@ async function loadComicPagesIntoEditor(bookId) {
     pages.forEach((page) => {
         const card = document.createElement('div');
         card.style.cssText = 'border: 1px solid #333; border-radius: 8px; padding: 6px; text-align: center;';
-        card.innerHTML = `
-      <img src="${page.image_url}" alt="Page ${page.page_number}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 4px;" />
-      <div style="font-size: 12px; margin: 6px 0;">Page ${page.page_number}</div>
-      <button type="button" data-page-id="${page.id}" class="delete-comic-page-btn" style="font-size: 11px;">Delete</button>
-    `;
+      card.innerHTML = `
+  <img src="${page.image_url}" alt="Page ${page.page_number}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 4px;" />
+  <div style="font-size: 12px; margin: 6px 0;">Page ${page.page_number}</div>
+  <button
+    type="button"
+    class="delete-comic-page-btn"
+    data-page-id="${page.id ?? ''}"
+    data-page-number="${page.page_number}"
+    style="font-size: 11px; cursor: pointer;"
+  >
+    Delete
+  </button>
+`;
         container.appendChild(card);
     });
 }
@@ -2402,12 +2416,20 @@ document.getElementById('btnAddComicPages')?.addEventListener('click', async () 
             .from('comic-pages')
             .getPublicUrl(uniquePath);
 
-        await activeSupabase.from('comic_pages').insert({
-            book_id: bookId,
-            chapter_number: 1,
-            page_number: nextPageNum,
-            image_url: pubData.publicUrl
-        });
+      const { data: insertedPage, error: insertErr } = await activeSupabase
+  .from('comic_pages')
+  .insert({
+    book_id: bookId,
+    chapter_number: 1,
+    page_number: nextPageNum,
+    image_url: pubData.publicUrl
+  })
+  .select()
+  .single();
+
+if (insertErr) {
+  console.error('Insert error:', insertErr);
+}
 
         nextPageNum++;
     }
@@ -2416,26 +2438,58 @@ document.getElementById('btnAddComicPages')?.addEventListener('click', async () 
     await loadComicPagesIntoEditor(bookId);
 });
 
-document.getElementById('comicPagesListContainer')?.addEventListener('click', async (e) => {
+if (!window.__comicDeleteBound) {
+  window.__comicDeleteBound = true;
+
+  document.addEventListener('click', async (e) => {
     const btn = e.target.closest('.delete-comic-page-btn');
     if (!btn) return;
 
+    e.preventDefault();
+    e.stopPropagation();
+
+    const bookId = activeEditingWorkId || window.activeEditingWorkId;
     const pageId = btn.dataset.pageId;
-    if (!pageId) return;
+    const pageNumber = btn.dataset.pageNumber;
 
-    const activeSupabase = window.supabaseClient || supabaseClient;
-    const { error } = await activeSupabase
-        .from('comic_pages')
-        .delete()
-        .eq('id', pageId);
-
-    if (error) {
-        console.error('Error deleting page:', error);
-        return alert('Failed to delete page.');
+    if (!bookId || (!pageId && !pageNumber)) {
+      alert('Missing page ID—cannot delete.');
+      return;
     }
 
-    await loadComicPagesIntoEditor(activeEditingWorkId || window.activeEditingWorkId);
-});
+    btn.disabled = true;
+    btn.textContent = 'Deleting...';
+
+    const activeSupabase = window.supabaseClient || supabaseClient;
+
+    let query = activeSupabase.from('comic_pages').delete();
+    if (pageId) {
+      query = query.eq('id', pageId);
+    } else {
+      query = query.eq('book_id', bookId).eq('page_number', Number(pageNumber));
+    }
+
+    const { data: deletedRows, error } = await query.select();
+
+    if (error) {
+      console.error('Supabase delete error:', error);
+      alert('Failed to delete page: ' + error.message);
+      btn.disabled = false;
+      btn.textContent = 'Delete';
+      return;
+    }
+
+    if (!deletedRows || deletedRows.length === 0) {
+      console.warn('Delete returned 0 rows—check Supabase RLS DELETE policy on comic_pages.');
+      alert('Delete blocked by database policy (0 rows removed).');
+      btn.disabled = false;
+      btn.textContent = 'Delete';
+      return;
+    }
+
+    await loadComicPagesIntoEditor(bookId);
+  });
+}
 
 const projectModal = document.getElementById('projectHelpModal');
 const openProjectBtn = document.getElementById('openProjectModalBtn');
@@ -3148,7 +3202,7 @@ window.openLoginModalWithEmail = function (email) {
     }
 };
 
-async function submitBankDetails(userId, userEmail, settlementBank, accountNumber, businessName) {
+async function submitBankDetails(userId, userEmail, settlementBank, accountNumber, businessName, bankName) {
     try {
 
         const response = await fetch('https://gleanword.onrender.com/api/create-subaccount', {
@@ -3161,6 +3215,7 @@ async function submitBankDetails(userId, userEmail, settlementBank, accountNumbe
                 userEmail,
                 businessName: businessName || userEmail,
                 settlementBank,
+                bankName,
                 accountNumber
             }),
         });
@@ -3219,14 +3274,26 @@ document.getElementById('close-bank-modal-btn')?.addEventListener('click', () =>
 document.getElementById('bank-onboarding-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const settlementBank = document.getElementById('bank-code-input').value.trim();
-    const accountNumber = document.getElementById('bank-account-input').value.trim();
+const bankSelect = document.getElementById('bank-code-input');
+const settlementBank = bankSelect.value.trim(); // e.g. "058"
+const bankName =
+  bankSelect.options?.[bankSelect.selectedIndex]?.textContent?.trim() || settlementBank;    const accountNumber = document.getElementById('bank-account-input').value.trim();
     const businessName = document.getElementById('bank-business-name')?.value.trim();
 
-    if (!pendingBankUserId) {
-        alert('Session context missing. Please sign in again.');
-        return;
-    }
+  if (!pendingBankUserId || !pendingBankUserEmail) {
+  const activeSupabase = window.supabaseClient || supabaseClient;
+  const { data: userData, error: userErr } = await activeSupabase.auth.getUser();
+
+  if (userErr || !userData?.user) {
+    alert('Session context missing. Please sign in again.');
+    return;
+  }
+
+  pendingBankUserId = userData.user.id;
+  pendingBankUserEmail = userData.user.email;
+  window.pendingBankUserId = pendingBankUserId;
+  window.pendingBankUserEmail = pendingBankUserEmail;
+}
 
     const submitBtn = document.getElementById('submit-bank-btn');
     try {
@@ -3238,7 +3305,8 @@ document.getElementById('bank-onboarding-form')?.addEventListener('submit', asyn
             pendingBankUserEmail,
             settlementBank,
             accountNumber,
-            businessName
+            businessName,
+            bankName
         );
 
     } catch (err) {
@@ -3379,3 +3447,22 @@ if (comicFileInput) {
 }
 
 const resourceModalForm = document.getElementById('resource-modal-form');
+
+function getBankNameFromCode(code, fallbackName = '') {
+  if (fallbackName && fallbackName !== code) {
+    return fallbackName;
+  }
+  if (!code) return '';
+
+  const bankSelect = document.getElementById('bank-code-input');
+  if (bankSelect) {
+    const matchingOption = Array.from(bankSelect.options).find(
+      (opt) => opt.value === String(code).trim()
+    );
+    if (matchingOption) {
+      return matchingOption.textContent.trim();
+    }
+  }
+
+  return code;
+}
