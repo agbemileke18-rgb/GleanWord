@@ -286,9 +286,19 @@
 
       <h3 style="margin-top: 0; color: #ffffff;">Link Payout Account</h3>
       <p style="color: #b0b0b0; font-size: 14px;">Before publishing your first paid resource, please link your bank
-        account to receive payouts securely via Paystack.</p>
+        account to receive payouts securely.</p>
 
       <form id="bank-onboarding-form">
+        <div class="form-group" style="margin-bottom: 15px;">
+          <label for="payout-region-input" style="display: block; margin-bottom: 5px; font-size: 13px;">Payout Region</label>
+          <select id="payout-region-input" required
+            style="width: 100%; padding: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; border-radius: 6px;">
+            <option value="nigeria" selected>Nigeria</option>
+            <option value="international">International</option>
+          </select>
+        </div>
+
+        <div id="nigeria-bank-fields">
         <div class="form-group" style="margin-bottom: 15px;">
           <label for="bank-code-input" style="display: block; margin-bottom: 5px; font-size: 13px;">Select Bank</label>
           <select id="bank-code-input" required
@@ -322,6 +332,62 @@
             Account Name (Optional)</label>
           <input type="text" id="bank-business-name" placeholder="Leave blank to use your account email"
             style="width: 100%; padding: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; border-radius: 6px;" />
+        </div>
+        </div>
+
+        <div id="international-bank-fields" style="display: none;">
+          <div class="form-group" style="margin-bottom: 15px;">
+            <label for="payout-currency-input" style="display: block; margin-bottom: 5px; font-size: 13px;">Currency</label>
+            <select id="payout-currency-input" required disabled
+              style="width: 100%; padding: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; border-radius: 6px;">
+              <option value="" disabled selected>-- Choose currency --</option>
+              <option value="USD">USD</option>
+              <option value="GBP">GBP</option>
+              <option value="EUR">EUR</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 15px;">
+            <label for="international-account-holder-input" style="display: block; margin-bottom: 5px; font-size: 13px;">Beneficiary Name</label>
+            <input type="text" id="international-account-holder-input" autocomplete="name" required disabled
+              style="width: 100%; padding: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; border-radius: 6px;" />
+          </div>
+
+          <div class="form-group" style="margin-bottom: 15px;">
+            <label for="international-bank-name-input" style="display: block; margin-bottom: 5px; font-size: 13px;">Bank Name / Account Bank</label>
+            <input type="text" id="international-bank-name-input" required disabled
+              style="width: 100%; padding: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; border-radius: 6px;" />
+          </div>
+
+          <div class="form-group" style="margin-bottom: 15px;">
+            <label for="international-account-number-input" style="display: block; margin-bottom: 5px; font-size: 13px;">Account Number / IBAN</label>
+            <input type="text" id="international-account-number-input" required disabled
+              style="width: 100%; padding: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; border-radius: 6px;" />
+          </div>
+
+          <div class="form-group" style="margin-bottom: 15px;">
+            <label for="international-routing-number-input" style="display: block; margin-bottom: 5px; font-size: 13px;">Routing Number (if applicable)</label>
+            <input type="text" id="international-routing-number-input" disabled
+              style="width: 100%; padding: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; border-radius: 6px;" />
+          </div>
+
+          <div class="form-group" style="margin-bottom: 15px;">
+            <label for="international-swift-code-input" style="display: block; margin-bottom: 5px; font-size: 13px;">SWIFT-BIC (if applicable)</label>
+            <input type="text" id="international-swift-code-input" disabled
+              style="width: 100%; padding: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; border-radius: 6px;" />
+          </div>
+
+          <div class="form-group" style="margin-bottom: 15px;">
+            <label for="international-beneficiary-address-input" style="display: block; margin-bottom: 5px; font-size: 13px;">Beneficiary Address</label>
+            <input type="text" id="international-beneficiary-address-input" autocomplete="street-address" required disabled
+              style="width: 100%; padding: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; border-radius: 6px;" />
+          </div>
+
+          <div class="form-group" style="margin-bottom: 20px;">
+            <label for="international-beneficiary-country-input" style="display: block; margin-bottom: 5px; font-size: 13px;">Beneficiary Country (2-letter country code)</label>
+            <input type="text" id="international-beneficiary-country-input" maxlength="2" placeholder="US" required disabled
+              style="width: 100%; padding: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; border-radius: 6px;" />
+          </div>
         </div>
 
         <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 10px;">

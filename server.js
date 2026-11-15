@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
+const https = require('https');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 require('dotenv').config();
 
 const app = express();
@@ -30,6 +32,59 @@ const BANK_CODE_TO_NAME = {
   '999991': 'PalmPay'
 };
 
+async function createFlutterwaveTransfer(transferDetails) {
+    const body = JSON.stringify(transferDetails);
+    const responseData = await new Promise((resolve, reject) => {
+        const request = https.request('https://api.flutterwave.com/v3/transfers', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${process.env.FLW_SECRET_KEY}`,
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'Content-Length': Buffer.byteLength(body)
+            },
+            agent: process.env.FIXIE_URL ? new HttpsProxyAgent(process.env.FIXIE_URL) : undefined
+        }, response => {
+            let responseBody = '';
+            response.setEncoding('utf8');
+            response.on('data', chunk => { responseBody += chunk; });
+            response.on('end', () => {
+                try {
+                    resolve({ statusCode: response.statusCode, data: JSON.parse(responseBody) });
+                } catch (err) {
+                    reject(new Error(`Invalid JSON response from Flutterwave: ${err.message}`));
+                }
+            });
+        });
+
+        request.on('error', reject);
+        request.end(body);
+    });
+
+    const { statusCode, data } = responseData;
+    if (statusCode < 200 || statusCode >= 300) {
+        throw new Error(data.message || `Flutterwave transfer request failed with status ${statusCode}.`);
+    }
+    if (data.status !== 'success') {
+        throw new Error(data.message || 'Flutterwave did not create the transfer.');
+    }
+
+    return data;
+}
+
+function createFlutterwaveReference(reference) {
+    return `GW-${crypto.createHash('sha256').update(String(reference)).digest('hex').slice(0, 32)}`;
+}
+
+async function requestMatchesUser(req, userId) {
+    const authorization = req.headers.authorization || '';
+    const accessToken = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
+    if (!accessToken || !userId) return false;
+
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(accessToken);
+    return !error && user?.id === userId;
+}
+
 app.post('/api/create-subaccount', async (req, res) => {
     try {
         const { userId, businessName, settlementBank, bankName, accountNumber } = req.body;
@@ -39,6 +94,9 @@ app.post('/api/create-subaccount', async (req, res) => {
             settlementBank;
         if (!userId || !settlementBank || !accountNumber) {
             return res.status(400).json({ error: 'Missing required bank or user details.' });
+        }
+        if (!await requestMatchesUser(req, userId)) {
+            return res.status(401).json({ error: 'Sign in as the payout account owner to continue.' });
         }
 
         const paystackResponse = await fetch('https://api.paystack.co/subaccount', {
@@ -68,9 +126,12 @@ app.post('/api/create-subaccount', async (req, res) => {
         const { error: dbError } = await supabaseAdmin
             .from('profiles')
             .update({
+                payout_region: 'nigeria',
                 paystack_subaccount_code: subaccountCode,
                 account_number: accountNumber,
-                bank_name: resolvedBankName
+                bank_name: resolvedBankName,
+                payout_currency: null,
+                intl_payout_details: null
             })
             .eq('id', userId);
 
@@ -88,6 +149,77 @@ app.post('/api/create-subaccount', async (req, res) => {
     } catch (err) {
         console.error('Server error in /api/create-subaccount:', err);
         return res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
+app.post('/api/register-international-payout', async (req, res) => {
+    try {
+        const {
+            userId,
+            currency,
+            account_bank,
+            account_number,
+            routing_number,
+            swift_code,
+            beneficiary_name,
+            beneficiary_address,
+            beneficiary_country
+        } = req.body;
+        const supportedCurrencies = ['USD', 'GBP', 'EUR'];
+        const normalizedCurrency = String(currency || '').toUpperCase();
+        const normalizedAccountBank = String(account_bank || '').trim();
+        const normalizedAccountNumber = String(account_number || '').trim();
+        const normalizedRoutingNumber = String(routing_number || '').trim();
+        const normalizedSwiftCode = String(swift_code || '').trim().toUpperCase();
+        const normalizedBeneficiaryName = String(beneficiary_name || '').trim();
+        const normalizedBeneficiaryAddress = String(beneficiary_address || '').trim();
+        const normalizedBeneficiaryCountry = String(beneficiary_country || '').trim().toUpperCase();
+
+        if (!userId || !supportedCurrencies.includes(normalizedCurrency) ||
+            !normalizedAccountBank || !normalizedAccountNumber || !normalizedBeneficiaryName ||
+            !normalizedBeneficiaryAddress || !/^[A-Z]{2}$/.test(normalizedBeneficiaryCountry) ||
+            (!normalizedRoutingNumber && !normalizedSwiftCode)) {
+            return res.status(400).json({ error: 'Missing or invalid international payout details.' });
+        }
+        if (!await requestMatchesUser(req, userId)) {
+            return res.status(401).json({ error: 'Sign in as the payout account owner to continue.' });
+        }
+
+        const intlPayoutDetails = {
+            account_bank: normalizedAccountBank,
+            account_number: normalizedAccountNumber,
+            routing_number: normalizedRoutingNumber || null,
+            swift_code: normalizedSwiftCode || null,
+            beneficiary_name: normalizedBeneficiaryName,
+            beneficiary_address: normalizedBeneficiaryAddress,
+            beneficiary_country: normalizedBeneficiaryCountry,
+            currency: normalizedCurrency
+        };
+
+        const { error: dbError } = await supabaseAdmin
+            .from('profiles')
+            .update({
+                payout_region: 'international',
+                payout_currency: normalizedCurrency,
+                bank_name: normalizedAccountBank,
+                account_number: normalizedAccountNumber,
+                intl_payout_details: intlPayoutDetails,
+                paystack_subaccount_code: null
+            })
+            .eq('id', userId);
+
+        if (dbError) {
+            console.error('Supabase international payout profile update error:', dbError);
+            return res.status(500).json({ error: 'Failed to save payout profile to database.' });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'International payout account successfully linked!'
+        });
+    } catch (err) {
+        console.error('Server error in /api/register-international-payout:', err);
+        return res.status(500).json({ error: 'Failed to register international payout account.' });
     }
 });
 
@@ -157,6 +289,76 @@ app.post('/webhook/paystack', async (req, res) => {
                 }
 
                 console.log(`📚 Success! Book ${corpusId} unlocked for user ${targetUser.id}`);
+
+                const { data: work, error: workError } = await supabaseAdmin
+                    .from('works')
+                    .select('author_id')
+                    .eq('id', corpusId)
+                    .maybeSingle();
+
+                if (workError || !work) {
+                    console.error('Failed to find the purchased book author:', workError || 'Book not found.');
+                    return res.status(500).send('Book author lookup failed');
+                }
+
+                const { data: authorProfile, error: profileError } = await supabaseAdmin
+                    .from('profiles')
+                    .select('payout_region, payout_currency, intl_payout_details')
+                    .eq('id', work.author_id)
+                    .maybeSingle();
+
+                if (profileError) {
+                    console.error('Failed to load author payout profile:', profileError);
+                    return res.status(500).send('Author payout profile lookup failed');
+                }
+
+                if (authorProfile?.payout_region === 'international') {
+                    const beneficiary = authorProfile.intl_payout_details;
+                    if (!beneficiary || !authorProfile.payout_currency) {
+                        console.error(`International payout profile is incomplete for author ${work.author_id}.`);
+                        return res.status(500).send('International author payout profile is incomplete');
+                    }
+
+                    if (!process.env.FLW_SECRET_KEY) {
+                        console.error('Flutterwave payout configuration is missing.');
+                        return res.status(500).send('Flutterwave payouts are not configured');
+                    }
+
+                    const royaltyAmount = Number((amountPaid * 0.8).toFixed(2));
+                    if (royaltyAmount <= 0) {
+                        console.error(`Invalid Flutterwave royalty amount for Paystack reference ${reference}.`);
+                        return res.status(500).send('Invalid author royalty amount');
+                    }
+
+                    const transferResponse = await createFlutterwaveTransfer({
+                        account_bank: beneficiary.account_bank,
+                        account_number: beneficiary.account_number,
+                        amount: royaltyAmount,
+                        currency: authorProfile.payout_currency,
+                        debit_currency: 'NGN',
+                        narration: `GleanWord author royalty for ${corpusId}`,
+                        reference: createFlutterwaveReference(reference),
+                        beneficiary_name: beneficiary.beneficiary_name,
+                        beneficiary_address: beneficiary.beneficiary_address,
+                        beneficiary_country: beneficiary.beneficiary_country,
+                        ...(beneficiary.routing_number ? { routing_number: beneficiary.routing_number } : {}),
+                        ...(beneficiary.swift_code ? { swift_code: beneficiary.swift_code } : {}),
+                        meta: [
+                            { metaname: 'beneficiary_name', metavalue: beneficiary.beneficiary_name },
+                            { metaname: 'beneficiary_address', metavalue: beneficiary.beneficiary_address },
+                            { metaname: 'beneficiary_country', metavalue: beneficiary.beneficiary_country },
+                            ...(beneficiary.routing_number
+                                ? [{ metaname: 'routing_number', metavalue: beneficiary.routing_number }]
+                                : []),
+                            ...(beneficiary.swift_code
+                                ? [{ metaname: 'swift_code', metavalue: beneficiary.swift_code }]
+                                : [])
+                        ]
+                    });
+                    console.log(
+                        `Flutterwave royalty transfer ${transferResponse.data?.id || 'created'} for author ${work.author_id}, reference ${reference}.`
+                    );
+                }
             }
 
             else if (metadata.is_subscription || event.data.plan) {

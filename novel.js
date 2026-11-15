@@ -79,7 +79,7 @@ async function fetchWorks(category = 'all') {
     try {
         let query = supabaseClient
             .from('works')
-            .select('*, profiles!author_id(paystack_subaccount_code)')
+            .select('*, profiles!author_id(paystack_subaccount_code, payout_region, intl_payout_details)')
             .in('status', ['approved', 'Approved'])
             .order('created_at', { ascending: false });
 
@@ -881,7 +881,7 @@ if (lastReadWork !== null && lastReadChapter !== null) {
 
         const { data: work } = await supabaseClient
             .from('works')
-            .select('*, profiles!author_id(paystack_subaccount_code)')
+            .select('*, profiles!author_id(paystack_subaccount_code, payout_region, intl_payout_details)')
             .eq('id', lastReadWork)
             .single();
 
@@ -1389,7 +1389,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const { data: profile, error } = await activeSupabase
                 .from('profiles')
-                .select('paystack_subaccount_code')
+                .select('paystack_subaccount_code, payout_region, intl_payout_details')
                 .eq('id', userId)
                 .single();
 
@@ -1397,7 +1397,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.error('Error checking author profile:', error);
             }
 
-            if (!profile || !profile.paystack_subaccount_code) {
+            const hasPayoutAccount = profile?.paystack_subaccount_code ||
+                (profile?.payout_region === 'international' && profile?.intl_payout_details);
+
+            if (!hasPayoutAccount) {
                 if (typeof openBankOnboardingModal === 'function') {
                     openBankOnboardingModal(userId, session.user.email);
                 } else {
@@ -1862,7 +1865,7 @@ async function openBookFromReadingList(workId, targetChapterIndex = 0) {
     try {
         const { data: work, error } = await supabaseClient
             .from('works')
-            .select('*, profiles!author_id(paystack_subaccount_code)')
+            .select('*, profiles!author_id(paystack_subaccount_code, payout_region, intl_payout_details)')
             .eq('id', workId)
             .single();
 
@@ -2034,7 +2037,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const { data: profile, error } = await activeSupabase
                 .from('profiles')
-                .select('paystack_subaccount_code, account_number, bank_name')
+                .select('paystack_subaccount_code, payout_region, intl_payout_details, account_number, bank_name')
                 .eq('id', session.user.id)
                 .maybeSingle();
 
@@ -2042,7 +2045,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Error fetching profile bank info:', error.message);
             }
 
-            if (profile && profile.paystack_subaccount_code) {
+            const hasPayoutAccount = profile?.paystack_subaccount_code ||
+                (profile?.payout_region === 'international' && profile?.intl_payout_details);
+
+            if (hasPayoutAccount) {
                 const displayBank = document.getElementById('displayBankName');
                 const displayAcct = document.getElementById('displayAccountNumber');
 
@@ -2126,11 +2132,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const { data: profile, error: profileError } = await activeSupabase
                 .from('profiles')
-                .select('paystack_subaccount_code')
+                .select('paystack_subaccount_code, payout_region, intl_payout_details')
                 .eq('id', userId)
                 .maybeSingle();
 
-            const hasBankRegistered = profile && profile.paystack_subaccount_code;
+            const hasBankRegistered = profile?.paystack_subaccount_code ||
+                (profile?.payout_region === 'international' && profile?.intl_payout_details);
 
             if (hasBankRegistered) {
                 const resourceModal = document.getElementById('add-resource-modal');
@@ -3067,21 +3074,27 @@ async function executeBookPayment(userEmail, work) {
         return;
     }
 
-    let authorSubaccount = work.profiles?.paystack_subaccount_code;
+    let authorProfile = Array.isArray(work.profiles) ? work.profiles[0] : work.profiles;
 
-    if (!authorSubaccount && work.author_id) {
+    if (!authorProfile && work.author_id) {
         const activeSupabase = window.supabaseClient || supabaseClient;
         const { data: profileData } = await activeSupabase
             .from('profiles')
-            .select('paystack_subaccount_code')
+            .select('paystack_subaccount_code, payout_region, intl_payout_details')
             .eq('id', work.author_id)
-            .limit(1);
+            .maybeSingle();
 
-        authorSubaccount = profileData && profileData.length > 0 ? profileData[0].paystack_subaccount_code : null;
+        authorProfile = profileData;
     }
 
-    if (!authorSubaccount) {
-        alert('Error: This author does not have a Paystack subaccount configured yet. Payment halted to protect revenue split.');
+    const authorSubaccount = authorProfile?.payout_region === 'international'
+        ? null
+        : authorProfile?.paystack_subaccount_code;
+    const hasInternationalPayout = authorProfile?.payout_region === 'international' &&
+        authorProfile?.intl_payout_details;
+
+    if (!authorSubaccount && !hasInternationalPayout) {
+        alert('Error: This author does not have a payout account configured yet. Payment halted to protect revenue split.');
         return;
     }
 
@@ -3100,7 +3113,7 @@ async function executeBookPayment(userEmail, work) {
         email: userEmail,
         amount: priceInKobo,
         currency: 'NGN',
-        subaccount: authorSubaccount,
+        ...(authorSubaccount ? { subaccount: authorSubaccount } : {}),
         metadata: {
             corpus_id: work.id,
             book_title: work.title,
@@ -3202,23 +3215,35 @@ window.openLoginModalWithEmail = function (email) {
     }
 };
 
-async function submitBankDetails(userId, userEmail, settlementBank, accountNumber, businessName, bankName) {
+async function submitBankDetails(userId, userEmail, payoutRegion, payoutDetails) {
     try {
+        const activeSupabase = window.supabaseClient || supabaseClient;
+        const { data: { session } } = await activeSupabase.auth.getSession();
+        if (!session?.access_token) {
+            throw new Error('Your session has expired. Please sign in again.');
+        }
 
-        const response = await fetch('https://gleanword.onrender.com/api/create-subaccount', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId,
-                userEmail,
-                businessName: businessName || userEmail,
-                settlementBank,
-                bankName,
-                accountNumber
-            }),
-        });
+        const isInternational = payoutRegion === 'international';
+        const response = await fetch(
+            `https://gleanword.onrender.com/api/${isInternational ? 'register-international-payout' : 'create-subaccount'}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify(isInternational ? {
+                    userId,
+                    ...payoutDetails
+                } : {
+                    userId,
+                    userEmail,
+                    businessName: payoutDetails.businessName || userEmail,
+                    settlementBank: payoutDetails.settlementBank,
+                    bankName: payoutDetails.bankName,
+                    accountNumber: payoutDetails.accountNumber
+                }),
+            });
 
         const result = await response.json();
 
@@ -3271,29 +3296,78 @@ document.getElementById('close-bank-modal-btn')?.addEventListener('click', () =>
     closeBankOnboardingModal();
 });
 
+function updatePayoutRegionFields() {
+    const regionInput = document.getElementById('payout-region-input');
+    const nigeriaFields = document.getElementById('nigeria-bank-fields');
+    const internationalFields = document.getElementById('international-bank-fields');
+    const nigeriaInputs = nigeriaFields?.querySelectorAll('input, select');
+    const internationalInputs = internationalFields?.querySelectorAll('input, select');
+    const isInternational = regionInput?.value === 'international';
+
+    if (nigeriaFields) nigeriaFields.style.display = isInternational ? 'none' : 'block';
+    if (internationalFields) internationalFields.style.display = isInternational ? 'block' : 'none';
+    nigeriaInputs?.forEach(input => { input.disabled = isInternational; });
+    internationalInputs?.forEach(input => { input.disabled = !isInternational; });
+    updateInternationalRoutingRequirement();
+}
+
+function updateInternationalRoutingRequirement() {
+    const routingInput = document.getElementById('international-routing-number-input');
+    const swiftInput = document.getElementById('international-swift-code-input');
+    const hasRoutingDetails = Boolean(routingInput?.value.trim() || swiftInput?.value.trim());
+    const message = hasRoutingDetails ? '' : 'Enter a routing number or SWIFT-BIC.';
+    routingInput?.setCustomValidity(message);
+    swiftInput?.setCustomValidity(message);
+}
+
+document.getElementById('payout-region-input')?.addEventListener('change', updatePayoutRegionFields);
+document.getElementById('international-routing-number-input')?.addEventListener('input', updateInternationalRoutingRequirement);
+document.getElementById('international-swift-code-input')?.addEventListener('input', updateInternationalRoutingRequirement);
+updatePayoutRegionFields();
+
 document.getElementById('bank-onboarding-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-const bankSelect = document.getElementById('bank-code-input');
-const settlementBank = bankSelect.value.trim(); // e.g. "058"
-const bankName =
-  bankSelect.options?.[bankSelect.selectedIndex]?.textContent?.trim() || settlementBank;    const accountNumber = document.getElementById('bank-account-input').value.trim();
-    const businessName = document.getElementById('bank-business-name')?.value.trim();
+    const payoutRegion = document.getElementById('payout-region-input').value;
+    let payoutDetails;
 
-  if (!pendingBankUserId || !pendingBankUserEmail) {
-  const activeSupabase = window.supabaseClient || supabaseClient;
-  const { data: userData, error: userErr } = await activeSupabase.auth.getUser();
+    if (payoutRegion === 'international') {
+        payoutDetails = {
+            currency: document.getElementById('payout-currency-input').value,
+            beneficiary_name: document.getElementById('international-account-holder-input').value.trim(),
+            account_bank: document.getElementById('international-bank-name-input').value.trim(),
+            account_number: document.getElementById('international-account-number-input').value.trim(),
+            routing_number: document.getElementById('international-routing-number-input').value.trim(),
+            swift_code: document.getElementById('international-swift-code-input').value.trim(),
+            beneficiary_address: document.getElementById('international-beneficiary-address-input').value.trim(),
+            beneficiary_country: document.getElementById('international-beneficiary-country-input').value.trim().toUpperCase()
+        };
+    } else {
+        const bankSelect = document.getElementById('bank-code-input');
+        const settlementBank = bankSelect.value.trim();
+        const bankName = bankSelect.options?.[bankSelect.selectedIndex]?.textContent?.trim() || settlementBank;
+        payoutDetails = {
+            settlementBank,
+            bankName,
+            accountNumber: document.getElementById('bank-account-input').value.trim(),
+            businessName: document.getElementById('bank-business-name')?.value.trim()
+        };
+    }
 
-  if (userErr || !userData?.user) {
-    alert('Session context missing. Please sign in again.');
-    return;
-  }
+    if (!pendingBankUserId || !pendingBankUserEmail) {
+        const activeSupabase = window.supabaseClient || supabaseClient;
+        const { data: userData, error: userErr } = await activeSupabase.auth.getUser();
 
-  pendingBankUserId = userData.user.id;
-  pendingBankUserEmail = userData.user.email;
-  window.pendingBankUserId = pendingBankUserId;
-  window.pendingBankUserEmail = pendingBankUserEmail;
-}
+        if (userErr || !userData?.user) {
+            alert('Session context missing. Please sign in again.');
+            return;
+        }
+
+        pendingBankUserId = userData.user.id;
+        pendingBankUserEmail = userData.user.email;
+        window.pendingBankUserId = pendingBankUserId;
+        window.pendingBankUserEmail = pendingBankUserEmail;
+    }
 
     const submitBtn = document.getElementById('submit-bank-btn');
     try {
@@ -3303,10 +3377,8 @@ const bankName =
         await submitBankDetails(
             pendingBankUserId,
             pendingBankUserEmail,
-            settlementBank,
-            accountNumber,
-            businessName,
-            bankName
+            payoutRegion,
+            payoutDetails
         );
 
     } catch (err) {
