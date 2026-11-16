@@ -3,11 +3,15 @@
   "version": "13.0.0",
   "main": "server.js",
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.80",
     "@supabase/supabase-js": "^2.117.3",
     "cors": "^2.8.6",
     "dotenv": "^18.0.7",
     "express": "^5.3.0",
-    "https-proxy-agent": "^9.1.0"
+    "https-proxy-agent": "^9.1.0",
+    "mammoth": "^1.13.0",
+    "pdf-parse": "^2.4.5",
+    "pdfjs-dist": "^5.4.296"
   },
   "devDependencies": {
     "ngrok": "^5.0.0-beta.2"

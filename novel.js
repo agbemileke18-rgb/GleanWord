@@ -1,6 +1,46 @@
 import { normalizeYorubaText } from './utils/normalizeYoruba.js';
 import { saveCorpusText } from './services/corpusService.js';
 
+const isLocalDevelopment = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const BACKEND_API_BASE_URL = isLocalDevelopment
+    ? 'http://localhost:3000/api'
+    : 'https://gleanword.onrender.com/api';
+
+async function readBackendApiResponse(response, requestLabel) {
+    const contentType = response.headers.get('content-type') || '';
+    const isJson = contentType.toLowerCase().includes('application/json');
+    if (!response.ok && !isJson) {
+        const responseText = await response.text();
+        const message = responseText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        throw new Error(
+            `${requestLabel} failed (HTTP ${response.status} ${response.statusText})` +
+            `${message ? `: ${message.slice(0, 240)}` : ': the server returned a non-JSON response.'}`
+        );
+    }
+
+    if (!isJson) {
+        const responseText = await response.text();
+        const message = responseText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        throw new Error(
+            `${requestLabel} failed (HTTP ${response.status} ${response.statusText})` +
+            `${message ? `: ${message.slice(0, 240)}` : ': the server returned a non-JSON response.'}`
+        );
+    }
+
+    let result;
+    try {
+        result = await response.json();
+    } catch {
+        throw new Error(`${requestLabel} failed (HTTP ${response.status} ${response.statusText}): the server returned invalid JSON.`);
+    }
+
+    if (!response.ok) {
+        throw new Error(result.error || `${requestLabel} failed (HTTP ${response.status} ${response.statusText}).`);
+    }
+    return result;
+}
+
+const WORK_CATEGORY_VALUES = ['novel', 'grammar', 'literature', 'poetry', 'comic'];
 let currentAuthorWorks = [];
 
 export async function handleTextSubmission(
@@ -144,7 +184,7 @@ async function renderBooksGrid(works) {
         card.setAttribute('data-book-id', work.id);
         card.setAttribute('data-subfield', work.subfield ? work.subfield.trim() : 'general');
 
-        const placeholderImg = '/path/to/your/default-placeholder.png';
+        const placeholderImg = '/novel-512.png';
         const imageSource = work.cover_url || placeholderImg;
         const descriptionText = work.description || 'Explore this research guide...';
         const authorName = work.author || 'Ann Alani';
@@ -216,6 +256,15 @@ async function renderBooksGrid(works) {
         </div>
       </div>
     `;
+
+        const coverImage = card.querySelector('img');
+        if (coverImage) {
+            coverImage.addEventListener('error', () => {
+                if (!coverImage.src.endsWith(placeholderImg)) {
+                    coverImage.src = placeholderImg;
+                }
+            }, { once: true });
+        }
 
         booksGrid.appendChild(card);
     });
@@ -326,6 +375,15 @@ function getUnitLabel(workCategory, isPlural = false) {
     return isPoetry ? 'Track' : 'Chapter';
 }
 
+function escapeReaderText(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function renderCurrentChapter() {
     const chapter = currentWorkChapters[currentChapterIndex];
     const readerBody = document.getElementById('reader-body');
@@ -382,6 +440,10 @@ function renderCurrentChapter() {
 
     if (chapter && chapter.content) {
         const rawContent = chapter.content;
+        const isImportedDocument = Boolean(window.currentwork?.source_file_path);
+        const readerContent = isImportedDocument
+            ? `<div style="white-space: pre-wrap;">${escapeReaderText(rawContent)}</div>`
+            : rawContent;
 
         let contentHTML = '';
 
@@ -396,7 +458,7 @@ function renderCurrentChapter() {
         } else {
             contentHTML = `
                 <div class="chapter-marker chapter-start">${unitLabel} Begins</div>
-                ${rawContent}
+                ${readerContent}
                 <div class="chapter-marker chapter-end">${unitLabel} Ends</div>
             `;
         }
@@ -1006,20 +1068,41 @@ const categorySelect = document.getElementById('modal-corpus-category');
 const textContentContainer = document.getElementById('text-content-container');
 const comicUploadBox = document.getElementById('comicUploadContainer');
 const textContentInput = document.getElementById('modal-corpus-content');
+const documentImportInput = document.getElementById('documentImportFileInput');
 
 function toggleCorpusInputFields() {
-    if (categorySelect.value === 'comic') {
+    const category = categorySelect.value;
+    const isComic = category === 'comic';
+    const canImportDocument = WORK_CATEGORY_VALUES.includes(category);
+    const hasImportedDocument = Boolean(documentImportInput?.files?.length);
+
+    if (isComic) {
         textContentContainer.style.display = 'none';
         comicUploadBox.style.display = 'block';
-        if (textContentInput) textContentInput.required = false;
     } else {
         textContentContainer.style.display = 'block';
         comicUploadBox.style.display = 'none';
-        if (textContentInput) textContentInput.required = true;
+    }
+
+    if (textContentInput) textContentInput.required = !isComic && !hasImportedDocument;
+    const documentImportContainer = document.getElementById('document-import-container');
+    if (documentImportContainer) documentImportContainer.style.display = canImportDocument ? 'block' : 'none';
+    if (documentImportInput) {
+        documentImportInput.accept = isComic
+            ? '.pdf,application/pdf'
+            : '.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     }
 }
 
 categorySelect.addEventListener('change', toggleCorpusInputFields);
+documentImportInput?.addEventListener('change', () => {
+    const file = documentImportInput.files?.[0];
+    if (file && file.size > 50 * 1024 * 1024) {
+        alert('The selected document exceeds the 50 MB limit.');
+        documentImportInput.value = '';
+    }
+    toggleCorpusInputFields();
+});
 toggleCorpusInputFields();
 
 let comicPages = [];
@@ -1426,8 +1509,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const category = document.getElementById('modal-corpus-category').value;
         const isComic = category && category.toLowerCase() === 'comic';
+        const documentFile = document.getElementById('documentImportFileInput')?.files?.[0];
 
-        if (isComic && (!selectedComicFiles || selectedComicFiles.length === 0)) {
+        if (!WORK_CATEGORY_VALUES.includes(category)) {
+            return alert('Choose a valid work category.');
+        }
+        if (documentFile && documentFile.size > 50 * 1024 * 1024) {
+            return alert('The selected document exceeds the 50 MB limit.');
+        }
+        if (documentFile) {
+            const extension = documentFile.name.split('.').pop()?.toLowerCase();
+            if (!['pdf', 'docx'].includes(extension) || (isComic && extension !== 'pdf')) {
+                return alert('Choose a PDF or DOCX file for text works. Comic imports require a PDF.');
+            }
+        }
+
+        if (isComic && !documentFile && (!selectedComicFiles || selectedComicFiles.length === 0)) {
             return alert('Please select comic page images to upload.');
         }
 
@@ -1453,6 +1550,137 @@ document.addEventListener('DOMContentLoaded', async () => {
             const description = document.getElementById('modal-corpus-description')?.value;
             const accessType = document.getElementById('modal-corpus-access')?.value;
             const price = parseFloat(document.getElementById('modal-corpus-price')?.value) || 0;
+
+            if (documentFile) {
+                if (submitBtn) submitBtn.textContent = 'Creating imported book...';
+                const generatedSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                console.log('[book-import] Creating work record', {
+                    title,
+                    category,
+                    sourceFileName: documentFile.name,
+                    sourceFileMimeType: documentFile.type || null,
+                    sourceFileSize: documentFile.size
+                });
+                let coverUrl = '';
+                const coverInput = document.getElementById('modal-corpus-cover');
+                const coverFile = coverInput?.files?.[0];
+                if (coverFile) {
+                    const extension = coverFile.name.split('.').pop()?.toLowerCase() || 'img';
+                    const coverPath = `cover_${Date.now()}_${Math.random().toString(36).slice(2)}.${extension}`;
+                    const { error: coverError } = await activeSupabase.storage
+                        .from('covers')
+                        .upload(coverPath, coverFile);
+                    if (coverError) throw coverError;
+                    coverUrl = activeSupabase.storage.from('covers').getPublicUrl(coverPath).data.publicUrl;
+                }
+
+                const { data: workData, error: workError } = await activeSupabase
+                    .from('works')
+                    .insert({
+                        title,
+                        slug: generatedSlug,
+                        author,
+                        author_id: currentUserId,
+                        category,
+                        description,
+                        cover_url: coverUrl,
+                        access_type: accessType,
+                        price,
+                        status: 'pending'
+                    })
+                    .select()
+                    .single();
+                if (workError) throw workError;
+                console.log('[book-import] Work record created', { workId: workData.id, category });
+
+                const extension = documentFile.name.split('.').pop().toLowerCase();
+                const safeFileName = documentFile.name.replace(/[^\w.-]+/g, '_') || `source.${extension}`;
+                const sourceFilePath = `${currentUserId}/${workData.id}/${Date.now()}_${safeFileName}`;
+                const sourceFileType = extension;
+                console.log('[book-import] book-uploads storage upload started', {
+                    sourceFilePath,
+                    originalname: documentFile.name,
+                    mimetype: documentFile.type || null,
+                    size: documentFile.size
+                });
+                const { error: sourceUploadError } = await activeSupabase.storage
+                    .from('book-uploads')
+                    .upload(sourceFilePath, documentFile, {
+                        contentType: documentFile.type || (extension === 'pdf'
+                            ? 'application/pdf'
+                            : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+                        upsert: false
+                    });
+                if (sourceUploadError) {
+                        console.error('[book-import] book-uploads storage upload failed', sourceUploadError);
+                        const { error: cleanupError } = await activeSupabase
+                            .from('works')
+                            .delete()
+                            .eq('id', workData.id);
+                        if (cleanupError) console.error('Failed to remove work after source upload failed:', cleanupError);
+                        throw sourceUploadError;
+                    }
+                console.log('[book-import] book-uploads storage upload finished', { sourceFilePath });
+
+                if (submitBtn) submitBtn.textContent = 'Extracting book content...';
+                const { data: { session: activeSession } } = await activeSupabase.auth.getSession();
+                if (!activeSession?.access_token) {
+                    throw new Error('Your session expired. Sign in again to finish importing this document.');
+                }
+
+                const importController = new AbortController();
+                const importTimeout = setTimeout(() => importController.abort(), 16 * 60 * 1000);
+                let importResponse;
+                try {
+                    importResponse = await fetch(`${BACKEND_API_BASE_URL}/import-book`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${activeSession.access_token}`
+                    },
+                    body: JSON.stringify({
+                        workId: workData.id,
+                        sourceFilePath,
+                        sourceFileType,
+                        sourceFileName: documentFile.name,
+                        sourceFileMimeType: documentFile.type,
+                        sourceFileSize: documentFile.size
+                    }),
+                    signal: importController.signal
+                    });
+                } catch (error) {
+                    if (importController.signal.aborted) {
+                        throw new Error('Comic/document extraction timed out. Check that the backend is still running, then retry from your author dashboard.');
+                    }
+                    if (error instanceof TypeError) {
+                        throw new Error(`Could not connect to the import backend at ${BACKEND_API_BASE_URL}. Make sure node server.js is running on port 3000.`);
+                    }
+                    throw error;
+                } finally {
+                    clearTimeout(importTimeout);
+                }
+                await readBackendApiResponse(importResponse, 'Document import');
+
+                resourceModalForm.reset();
+                selectedComicFiles = [];
+                const addResourceModal = document.getElementById('add-resource-modal');
+                if (addResourceModal) addResourceModal.style.display = 'none';
+                toggleCorpusInputFields();
+
+                const { data: importedWork, error: importedWorkError } = await activeSupabase
+                    .from('works')
+                    .select('*')
+                    .eq('id', workData.id)
+                    .single();
+                if (importedWorkError) throw importedWorkError;
+
+                if (typeof window.openAuthorDashboard !== 'function') {
+                    throw new Error('The imported book editor is unavailable. Reopen this work from your author dashboard.');
+                }
+                await window.openAuthorDashboard(importedWork);
+                alert(`Import complete. Review and edit the ${category === 'comic' ? 'comic pages' : 'chapters'} before publishing.`);
+                return;
+            }
 
             if (isComic) {
                 // --- COMIC UPLOAD PATH ---
@@ -1501,7 +1729,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     book_id: activeWorkId,
     chapter_number: 1,
     page_number: pageNum,
-    image_url: publicUrlData.publicUrl
+    image_url: publicUrlData.publicUrl,
+    created_at: new Date().toISOString()
   })
   .select()
   .single();
@@ -1563,7 +1792,7 @@ if (insertErr) {
 
         } catch (err) {
             console.error('Submission error:', err);
-            alert('Failed to save resource. Check console for details.');
+            alert(err.message || 'Failed to save resource. Check console for details.');
             if (submitBtn) {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Submit';
@@ -2429,7 +2658,8 @@ document.getElementById('btnAddComicPages')?.addEventListener('click', async () 
     book_id: bookId,
     chapter_number: 1,
     page_number: nextPageNum,
-    image_url: pubData.publicUrl
+    image_url: pubData.publicUrl,
+    created_at: new Date().toISOString()
   })
   .select()
   .single();
@@ -3225,7 +3455,7 @@ async function submitBankDetails(userId, userEmail, payoutRegion, payoutDetails)
 
         const isInternational = payoutRegion === 'international';
         const response = await fetch(
-            `https://gleanword.onrender.com/api/${isInternational ? 'register-international-payout' : 'create-subaccount'}`,
+            `${BACKEND_API_BASE_URL}/${isInternational ? 'register-international-payout' : 'create-subaccount'}`,
             {
                 method: 'POST',
                 headers: {
@@ -3245,11 +3475,7 @@ async function submitBankDetails(userId, userEmail, payoutRegion, payoutDetails)
                 }),
             });
 
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.error || 'Failed to link payout account.');
-        }
+        await readBackendApiResponse(response, 'Payout account registration');
 
         alert('Payout account linked successfully!');
         closeBankOnboardingModal();

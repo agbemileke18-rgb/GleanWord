@@ -1,10 +1,10 @@
-const CACHE_NAME = 'gleanword-v63';
+const CACHE_NAME = 'gleanword-v64';
 const ASSETS_TO_CACHE = [
     '/',
     '/index.html',
     '/404.html',
-    '/novel.css?v=63',
-    '/novel.js?v=63',
+    '/novel.css?v=64',
+    '/novel.js?v=64',
     '/manifest.json',
     '/novel-192.png',
     '/novel-512.png'
@@ -32,6 +32,11 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+    const requestUrl = new URL(event.request.url);
+    if (event.request.method !== 'GET' || requestUrl.pathname.startsWith('/api/')) {
+        return;
+    }
+
     if (event.request.mode === 'navigate' || event.request.url.includes('index.html')) {
         event.respondWith(
             fetch(event.request).catch(() => caches.match(event.request))

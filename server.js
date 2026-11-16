@@ -1,20 +1,80 @@
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 const https = require('https');
+const { spawn } = require('node:child_process');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
 const { HttpsProxyAgent } = require('https-proxy-agent');
-require('dotenv').config();
-
+const mammoth = require('mammoth');
+const { createCanvas, DOMMatrix, ImageData, Path2D } = require('@napi-rs/canvas');
+globalThis.DOMMatrix ||= DOMMatrix;
+globalThis.ImageData ||= ImageData;
+globalThis.Path2D ||= Path2D;
+const { PDFParse } = require('pdf-parse');
 const app = express();
 
+process.on('uncaughtException', error => {
+    console.error('[process] Uncaught exception:', error?.stack || error);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', reason => {
+    console.error(
+        '[process] Unhandled promise rejection:',
+        reason?.stack || reason
+    );
+});
+
+app.use(cors({
+    origin: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
-app.use(cors());
 
 const supabaseAdmin = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+const MAX_BOOK_UPLOAD_BYTES = 50 * 1024 * 1024;
+const TEXT_DOCUMENT_CATEGORIES = ['novel', 'grammar', 'literature', 'poetry'];
+const SUPPORTED_DOCUMENT_CATEGORIES = [...TEXT_DOCUMENT_CATEGORIES, 'comic'];
+
+function logImportSupabaseError(requestId, stage, error) {
+    console.error(`[import:${requestId}] ${stage} Supabase error`, {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code,
+        error
+    });
+}
+
+async function runImportSupabaseOperation(requestId, stage, operation) {
+    console.log(`[import:${requestId}] ${stage}: started`);
+    try {
+        const result = await operation();
+        console.log(`[import:${requestId}] ${stage}: Supabase result`, {
+            data: result?.data ?? null,
+            error: result?.error ?? null
+        });
+        if (result?.error) {
+            logImportSupabaseError(requestId, stage, result.error);
+        } else {
+            console.log(`[import:${requestId}] ${stage}: completed`);
+        }
+        return result;
+    } catch (error) {
+        console.error(`[import:${requestId}] ${stage}: threw`, error?.stack || error);
+        throw error;
+    }
+}
 
 const BANK_CODE_TO_NAME = {
   '058': 'Guaranty Trust Bank (GTB)',
@@ -84,6 +144,611 @@ async function requestMatchesUser(req, userId) {
     const { data: { user }, error } = await supabaseAdmin.auth.getUser(accessToken);
     return !error && user?.id === userId;
 }
+
+function splitDocumentIntoSections(text, category, pdfPages = []) {
+    const rawPages = String(text || '')
+        .replace(/\u0000/g, '')
+        .replace(/\r\n?/g, '\n')
+        .split(/\f+/)
+        .map(page => page.trim())
+        .filter(Boolean);
+    const normalizedText = rawPages
+        .join('\n\n')
+        .trim();
+    const headingPattern = /^(?:(?:chapter|part|section|book|act|scene)\s+(?:\d+|[ivxlcdm]+|[a-z]+)(?:\s*[:.\-–—]\s*.*)?|prologue|epilogue)\s*$/i;
+    const lines = normalizedText.split('\n');
+    const sections = [];
+    let activeTitle = null;
+    let activeLines = [];
+
+    const pushSection = () => {
+        const content = activeLines.join('\n').trim();
+        if (content) {
+            sections.push({
+                title: activeTitle || (category === 'poetry' ? `Poem ${sections.length + 1}` : `Section ${sections.length + 1}`),
+                content
+            });
+        }
+    };
+
+    for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (trimmedLine.length <= 120 && headingPattern.test(trimmedLine)) {
+            pushSection();
+            activeTitle = trimmedLine;
+            activeLines = [];
+        } else {
+            activeLines.push(line);
+        }
+    }
+    pushSection();
+
+    if (sections.length > 1 || (sections.length === 1 && activeTitle)) {
+        return sections;
+    }
+
+    const pageSections = (pdfPages.length > 1 ? pdfPages : rawPages.length > 1 ? rawPages : [])
+        .map(page => String(page || '').replace(/\u0000/g, '').replace(/\r\n?/g, '\n').trim())
+        .filter(Boolean);
+
+    if (pageSections.length > 1) {
+        return pageSections.map((content, index) => ({
+            title: category === 'poetry' ? `Poem ${index + 1}` : `Section ${index + 1}`,
+            content
+        }));
+    }
+
+    if (!normalizedText) return [];
+    return [{
+        title: category === 'poetry' ? 'Poem 1' : 'Beginning',
+        content: normalizedText
+    }];
+}
+
+async function insertRowsInBatches(tableName, rows, requestId) {
+    for (let offset = 0; offset < rows.length; offset += 100) {
+        const batchNumber = Math.floor(offset / 100) + 1;
+        const { error } = await runImportSupabaseOperation(
+            requestId,
+            `${tableName} insert batch ${batchNumber} (${Math.min(offset + 100, rows.length)}/${rows.length} rows)`,
+            () => supabaseAdmin
+                .from(tableName)
+                .insert(rows.slice(offset, offset + 100))
+                .select(tableName === 'comic_pages'
+                    ? 'id, book_id, chapter_number, page_number, image_url, created_at'
+                    : 'id, work_id, chapter_number, title')
+        );
+        if (error) return error;
+    }
+    return null;
+}
+
+async function extractDocumentSections(buffer, fileType, category) {
+    if (fileType === 'docx') {
+        const result = await mammoth.convertToHtml({ buffer }, {
+            styleMap: ["br[type='page'] => hr:fresh"]
+        });
+        const text = result.value
+            .replace(/<hr\b[^>]*\/?>/gi, '\f')
+            .replace(/<br\b[^>]*\/?>/gi, '\n')
+            .replace(/<\/(?:p|h[1-6]|li|div|blockquote|pre)>/gi, '\n\n')
+            .replace(/<li\b[^>]*>/gi, '- ')
+            .replace(/<[^>]+>/g, '')
+            .replace(/&(#x[\da-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi, (entity, value) => {
+                if (value[0] === '#') {
+                    const codePoint = value[1].toLowerCase() === 'x'
+                        ? parseInt(value.slice(2), 16)
+                        : parseInt(value.slice(1), 10);
+                    return Number.isFinite(codePoint) && codePoint <= 0x10ffff
+                        ? String.fromCodePoint(codePoint)
+                        : entity;
+                }
+                return {
+                    amp: '&',
+                    lt: '<',
+                    gt: '>',
+                    quot: '"',
+                    apos: "'",
+                    nbsp: '\u00a0'
+                }[value.toLowerCase()] || entity;
+            });
+        return splitDocumentIntoSections(text, category);
+    }
+
+    const parser = new PDFParse({ data: new Uint8Array(buffer) });
+    try {
+        const result = await parser.getText();
+        if (category === 'comic') {
+            return { pageCount: result.total };
+        }
+        return splitDocumentIntoSections(
+            result.text,
+            category,
+            result.pages.map(page => page.text)
+        );
+    } finally {
+        await parser.destroy();
+    }
+}
+
+async function renderComicPdfPages(buffer, onPage, onPageStart = () => {}, onRenderStage = () => {}, requestId) {
+    const tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'gleanword-comic-'));
+    const pdfPath = path.join(tempDirectory, 'source.pdf');
+    const outputDirectory = path.join(tempDirectory, 'pages');
+    await fs.mkdir(outputDirectory);
+    await fs.writeFile(pdfPath, buffer);
+
+    try {
+        const child = spawn(process.execPath, [
+            path.join(__dirname, 'render-comic-pdf.js'),
+            pdfPath,
+            outputDirectory
+        ], {
+            cwd: __dirname,
+            stdio: ['ignore', 'pipe', 'pipe']
+        });
+
+        let outputBuffer = '';
+        let completedPageCount = null;
+        let rendererError = null;
+        let lastRendererStage = 'renderer startup';
+        const renderedPages = [];
+
+        child.stdout.setEncoding('utf8');
+        child.stdout.on('data', chunk => {
+            outputBuffer += chunk;
+            const lines = outputBuffer.split(/\r?\n/);
+            outputBuffer = lines.pop() || '';
+            for (const line of lines) {
+                if (!line) continue;
+                try {
+                    const event = JSON.parse(line);
+                    if (event.type === 'stage') {
+                        lastRendererStage = event.stage;
+                        if (event.pageNumber) onPageStart(event.pageNumber);
+                        onRenderStage(event.stage, event);
+                    } else if (event.type === 'page') {
+                        renderedPages.push(event);
+                        onRenderStage('PDF page rendered in isolated process', event);
+                    } else if (event.type === 'complete') {
+                        completedPageCount = event.pageCount;
+                    } else if (event.type === 'error') {
+                        rendererError = new Error(event.message);
+                        rendererError.stack = event.stack || rendererError.stack;
+                    }
+                } catch (error) {
+                    rendererError = new Error(`Invalid output from PDF renderer: ${error.message}`);
+                    child.kill();
+                }
+            }
+        });
+
+        child.stderr.setEncoding('utf8');
+        child.stderr.on('data', chunk => {
+            console.error(`[import:${requestId}] PDF renderer stderr: ${chunk.trimEnd()}`);
+        });
+
+        const childResult = await new Promise((resolve, reject) => {
+            let timedOut = false;
+            const timeout = setTimeout(() => {
+                timedOut = true;
+                child.kill();
+            }, 15 * 60 * 1000);
+            timeout.unref();
+            child.once('error', error => {
+                clearTimeout(timeout);
+                reject(error);
+            });
+            child.once('close', (code, signal) => {
+                clearTimeout(timeout);
+                if (timedOut) {
+                    reject(new Error('Comic PDF rendering exceeded its 15-minute timeout.'));
+                } else {
+                    resolve({ code, signal });
+                }
+            });
+        });
+
+        if (outputBuffer.trim()) {
+            try {
+                const event = JSON.parse(outputBuffer);
+                if (event.type === 'error') {
+                    rendererError = new Error(event.message);
+                    rendererError.stack = event.stack || rendererError.stack;
+                } else if (event.type === 'complete') {
+                    completedPageCount = event.pageCount;
+                }
+            } catch (error) {
+                rendererError ||= new Error(`Invalid final output from PDF renderer: ${error.message}`);
+            }
+        }
+
+        if (rendererError) throw rendererError;
+        if (childResult.code !== 0) {
+            throw new Error(
+                `Isolated PDF renderer exited with code ${childResult.code ?? 'unknown'}` +
+                `${childResult.signal ? ` (${childResult.signal})` : ''} during ${lastRendererStage}.`
+            );
+        }
+        if (completedPageCount === null || renderedPages.length !== completedPageCount) {
+            throw new Error(
+                `PDF renderer completed ${renderedPages.length} pages, expected ${completedPageCount ?? 'unknown'}.`
+            );
+        }
+
+        for (const page of renderedPages) {
+            const image = await fs.readFile(path.join(outputDirectory, `page-${page.pageNumber}.webp`));
+            await onPage(page.pageNumber, image);
+        }
+        return completedPageCount;
+    } finally {
+        await fs.rm(tempDirectory, { recursive: true, force: true });
+    }
+}
+
+app.post('/api/import-book', async (req, res) => {
+    const requestId = crypto.randomUUID();
+    let uploadedPagePaths = [];
+    let workId;
+    let importStep = 'request validation';
+    let comicRowsInsertStarted = false;
+    console.log(`[import:${requestId}] /api/import-book request received`, {
+        method: req.method,
+        contentLength: req.get('content-length') || null,
+        contentType: req.get('content-type') || null
+    });
+    try {
+        importStep = 'author authentication';
+        console.log(`[import:${requestId}] Stage started: ${importStep}`);
+        const authorization = req.headers.authorization || '';
+        const accessToken = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
+        if (!accessToken) {
+            return res.status(401).json({ error: 'Sign in to import a book.' });
+        }
+
+        const { data: { user }, error: authError } = await runImportSupabaseOperation(
+            requestId,
+            'Supabase auth user lookup',
+            () => supabaseAdmin.auth.getUser(accessToken)
+        );
+        if (authError || !user) {
+            return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
+        }
+
+        const {
+            workId: requestedWorkId,
+            sourceFilePath,
+            sourceFileType,
+            sourceFileName,
+            sourceFileMimeType,
+            sourceFileSize
+        } = req.body || {};
+        workId = requestedWorkId;
+        if (!workId) return res.status(400).json({ error: 'A work ID is required.' });
+        console.log(`[import:${requestId}] Client source file metadata`, {
+            originalname: sourceFileName || sourceFilePath?.split('/').pop() || null,
+            mimetype: sourceFileMimeType || null,
+            size: Number.isFinite(Number(sourceFileSize)) ? Number(sourceFileSize) : null,
+            fileType: sourceFileType || null,
+            sourceFilePath,
+            workId
+        });
+
+        importStep = 'work lookup';
+        console.log(`[import:${requestId}] Stage started: ${importStep}`);
+        const { data: work, error: workError } = await runImportSupabaseOperation(
+            requestId,
+            'works lookup',
+            () => supabaseAdmin
+                .from('works')
+                .select('id, author_id, title, category')
+                .eq('id', workId)
+                .eq('author_id', user.id)
+                .single()
+        );
+
+        if (workError || !work) {
+            console.error('Document import work lookup failed:', workError);
+            return res.status(404).json({ error: 'The work could not be found for this author.' });
+        }
+
+        const fileType = String(sourceFileType || '').toLowerCase();
+        console.log(`[import:${requestId}] Work category and file type`, {
+            category: work.category,
+            fileType
+        });
+        if (!['pdf', 'docx'].includes(fileType) ||
+            !SUPPORTED_DOCUMENT_CATEGORIES.includes(work.category) ||
+            (work.category === 'comic' && fileType !== 'pdf')) {
+            return res.status(400).json({ error: 'The source file type or book category is not supported.' });
+        }
+
+        const expectedPathPrefix = `${user.id}/${work.id}/`;
+        if (typeof sourceFilePath !== 'string' ||
+            !sourceFilePath.startsWith(expectedPathPrefix) ||
+            sourceFilePath.split('/').some(part => part === '..')) {
+            return res.status(400).json({ error: 'The source file path is invalid.' });
+        }
+
+        const tableName = work.category === 'comic' ? 'comic_pages' : 'chapters';
+        importStep = 'existing content lookup';
+        console.log(`[import:${requestId}] Stage started: ${importStep}`);
+        const { data: existingRows, error: existingError } = await runImportSupabaseOperation(
+            requestId,
+            `${tableName} existing content lookup`,
+            () => supabaseAdmin
+                .from(tableName)
+                .select('id')
+                .eq(work.category === 'comic' ? 'book_id' : 'work_id', work.id)
+                .limit(1)
+        );
+
+        if (existingError) {
+            console.error(`Existing ${tableName} lookup failed:`, existingError);
+            return res.status(500).json({ error: 'Could not check the existing book content.' });
+        }
+        if (existingRows?.length) {
+            return res.status(409).json({ error: 'This work already has content. Import requires an empty work.' });
+        }
+
+        importStep = 'source file download';
+        console.log(`[import:${requestId}] Stage started: ${importStep} from book-uploads`, {
+            sourceFilePath
+        });
+        const { data: sourceFile, error: downloadError } = await runImportSupabaseOperation(
+            requestId,
+            'book-uploads storage download',
+            () => supabaseAdmin.storage
+                .from('book-uploads')
+                .download(sourceFilePath)
+        );
+        if (downloadError || !sourceFile) {
+            console.error('Private source file download failed:', downloadError);
+            return res.status(500).json({ error: 'Could not read the uploaded source file.' });
+        }
+
+        if (sourceFile.size > MAX_BOOK_UPLOAD_BYTES) {
+            return res.status(413).json({ error: 'The source file exceeds the 50 MB limit.' });
+        }
+
+        const buffer = Buffer.from(await sourceFile.arrayBuffer());
+        console.log(`[import:${requestId}] book-uploads source download finished`, {
+            bytes: buffer.length,
+            reportedBytes: Number.isFinite(Number(sourceFileSize)) ? Number(sourceFileSize) : null,
+            originalname: sourceFileName || sourceFilePath.split('/').pop(),
+            mimetype: sourceFileMimeType || sourceFile.type || null
+        });
+        if (buffer.length > MAX_BOOK_UPLOAD_BYTES) {
+            return res.status(413).json({ error: 'The source file exceeds the 50 MB limit.' });
+        }
+
+        if (fileType === 'pdf' && buffer.subarray(0, 5).toString() !== '%PDF-') {
+            return res.status(400).json({ error: 'The uploaded file is not a valid PDF.' });
+        }
+        if (fileType === 'docx' && buffer.subarray(0, 2).toString() !== 'PK') {
+            return res.status(400).json({ error: 'The uploaded file is not a valid DOCX document.' });
+        }
+
+        importStep = 'source metadata update';
+        console.log(`[import:${requestId}] Stage started: ${importStep}`);
+        const { error: sourceUpdateError } = await runImportSupabaseOperation(
+            requestId,
+            'works source metadata update',
+            () => supabaseAdmin
+                .from('works')
+                .update({
+                    source_file_path: sourceFilePath,
+                    source_file_type: fileType
+                })
+                .eq('id', work.id)
+                .eq('author_id', user.id)
+                .select('id, source_file_path, source_file_type')
+        );
+        if (sourceUpdateError) {
+            console.error('Could not save uploaded source file metadata:', sourceUpdateError);
+            return res.status(500).json({ error: 'Could not save the source file details.' });
+        }
+
+        if (work.category !== 'comic') {
+            importStep = `${fileType} text extraction`;
+            console.log(`[import:${requestId}] Stage started: ${importStep}`);
+            const sections = await extractDocumentSections(buffer, fileType, work.category);
+            console.log(`[import:${requestId}] Text extraction finished`, { sectionCount: sections.length });
+            if (!sections.length) {
+                return res.status(422).json({ error: 'No readable text was found in the document.' });
+            }
+
+            const chapterRows = sections.map((section, index) => ({
+                work_id: work.id,
+                chapter_number: index + 1,
+                title: section.title,
+                content: section.content
+            }));
+
+            importStep = 'chapter database insert';
+            console.log(`[import:${requestId}] Stage started: ${importStep}`, { rowCount: chapterRows.length });
+            const insertError = await insertRowsInBatches('chapters', chapterRows, requestId);
+            if (insertError) {
+                logImportSupabaseError(requestId, 'chapters insert', insertError);
+                const { error: cleanupError } = await runImportSupabaseOperation(
+                    requestId,
+                    'chapters partial-row cleanup',
+                    () => supabaseAdmin
+                        .from('chapters')
+                        .delete()
+                        .eq('work_id', work.id)
+                );
+                if (cleanupError) logImportSupabaseError(requestId, 'chapters partial-row cleanup', cleanupError);
+                return res.status(500).json({ error: 'Could not save extracted chapters.' });
+            }
+
+            console.log(`[import:${requestId}] Import completed successfully`, { chapterCount: chapterRows.length });
+            return res.status(200).json({ success: true, chapterCount: chapterRows.length });
+        }
+
+        importStep = 'comic PDF page counting';
+        console.log(`[import:${requestId}] Stage started: ${importStep}`);
+        const { pageCount } = await extractDocumentSections(buffer, fileType, work.category);
+        console.log(`[import:${requestId}] Comic PDF page counting finished`, { pageCount });
+        if (!pageCount) {
+            return res.status(422).json({ error: 'No pages were found in the comic PDF.' });
+        }
+
+        const comicPageRows = [];
+        importStep = 'comic PDF rendering initialization';
+        console.log(`[import:${requestId}] PDF page rendering started`);
+        await renderComicPdfPages(buffer, async (pageNumber, webp) => {
+            console.log(`[import:${requestId}] PDF page rendered`, {
+                pageNumber,
+                webpBytes: webp.length
+            });
+            importStep = `comic page ${pageNumber} storage upload`;
+            const pagePath = `${work.id}/page-${pageNumber}.webp`;
+            console.log(`[import:${requestId}] comic-pages storage upload started`, {
+                pageNumber,
+                pagePath,
+                bytes: webp.length,
+                contentType: 'image/webp'
+            });
+            const { error: uploadError } = await runImportSupabaseOperation(
+                requestId,
+                `comic-pages storage upload page ${pageNumber}`,
+                () => supabaseAdmin.storage
+                    .from('comic-pages')
+                    .upload(pagePath, webp, {
+                        contentType: 'image/webp',
+                        upsert: true
+                    })
+            );
+            if (uploadError) throw new Error(`Could not upload comic page ${pageNumber}: ${uploadError.message}`);
+            uploadedPagePaths.push(pagePath);
+
+            const { data: publicUrlData } = await runImportSupabaseOperation(
+                requestId,
+                `comic-pages public URL lookup page ${pageNumber}`,
+                () => Promise.resolve(supabaseAdmin.storage
+                    .from('comic-pages')
+                    .getPublicUrl(pagePath))
+            );
+            comicPageRows.push({
+                book_id: work.id,
+                chapter_number: 1,
+                page_number: pageNumber,
+                image_url: publicUrlData.publicUrl,
+                created_at: new Date().toISOString()
+            });
+        }, pageNumber => {
+            importStep = `comic PDF page ${pageNumber} rendering`;
+            console.log(`[import:${requestId}] PDF page rendering started`, { pageNumber });
+        }, (stage, details = {}) => {
+            importStep = details.pageNumber
+                ? `comic PDF page ${details.pageNumber}: ${stage}`
+                : `comic PDF rendering: ${stage}`;
+            console.log(`[import:${requestId}] ${stage}`, details);
+        }, requestId);
+        console.log(`[import:${requestId}] PDF page rendering finished`, {
+            renderedPages: comicPageRows.length,
+            expectedPages: pageCount
+        });
+        if (comicPageRows.length !== pageCount) {
+            throw new Error(`Rendered ${comicPageRows.length} comic pages but the PDF contains ${pageCount} pages.`);
+        }
+
+        importStep = 'comic page database insert';
+        comicRowsInsertStarted = true;
+        console.log(`[import:${requestId}] Stage started: ${importStep}`, {
+            rowCount: comicPageRows.length,
+            firstRow: comicPageRows[0] || null,
+            lastRow: comicPageRows[comicPageRows.length - 1] || null
+        });
+        const insertError = await insertRowsInBatches('comic_pages', comicPageRows, requestId);
+        if (insertError) {
+            logImportSupabaseError(requestId, 'comic_pages insert', insertError);
+            const { error: pageCleanupError } = await runImportSupabaseOperation(
+                requestId,
+                'comic_pages partial-row cleanup',
+                () => supabaseAdmin
+                    .from('comic_pages')
+                    .delete()
+                    .eq('book_id', work.id)
+            );
+            if (pageCleanupError) {
+                logImportSupabaseError(requestId, 'comic_pages partial-row cleanup', pageCleanupError);
+            }
+            const { error: cleanupError } = await runImportSupabaseOperation(
+                requestId,
+                'comic-pages storage cleanup after insert failure',
+                () => supabaseAdmin.storage
+                    .from('comic-pages')
+                    .remove(uploadedPagePaths)
+            );
+            if (cleanupError) {
+                logImportSupabaseError(requestId, 'comic-pages storage cleanup after insert failure', cleanupError);
+            }
+            return res.status(500).json({ error: 'Could not save extracted comic pages.' });
+        }
+
+        console.log(`[import:${requestId}] Comic import completed successfully`, {
+            pageCount: comicPageRows.length
+        });
+        return res.status(200).json({ success: true, pageCount: comicPageRows.length });
+    } catch (err) {
+        console.error(
+            `[import:${requestId}] Document import failed during ${importStep} for work ${workId || 'unknown'}`,
+            {
+                message: err?.message,
+                details: err?.details,
+                hint: err?.hint,
+                code: err?.code,
+                stack: err?.stack,
+                error: err
+            }
+        );
+        if (comicRowsInsertStarted && workId) {
+            try {
+                const { error: rowCleanupError } = await runImportSupabaseOperation(
+                    requestId,
+                    'comic_pages partial-row cleanup after exception',
+                    () => supabaseAdmin
+                        .from('comic_pages')
+                        .delete()
+                        .eq('book_id', workId)
+                );
+                if (rowCleanupError) {
+                    logImportSupabaseError(requestId, 'comic_pages partial-row cleanup after exception', rowCleanupError);
+                }
+            } catch (rowCleanupError) {
+                console.error('Failed to clean up partial imported comic page rows:', rowCleanupError?.stack || rowCleanupError);
+            }
+        }
+        if (uploadedPagePaths.length) {
+            try {
+                const { error: cleanupError } = await runImportSupabaseOperation(
+                    requestId,
+                    'comic-pages storage cleanup after exception',
+                    () => supabaseAdmin.storage
+                        .from('comic-pages')
+                        .remove(uploadedPagePaths)
+                );
+                if (cleanupError) {
+                    logImportSupabaseError(requestId, 'comic-pages storage cleanup after exception', cleanupError);
+                }
+            } catch (cleanupError) {
+                console.error('Failed to clean up partial comic page uploads:', cleanupError?.stack || cleanupError);
+            }
+        }
+        if (res.headersSent) {
+            return res.end();
+        }
+        const statusCode = Number.isInteger(err.status) && err.status >= 400 && err.status < 600
+            ? err.status
+            : 500;
+        return res.status(statusCode).json({
+            error: err.message || 'Document import failed.',
+            step: importStep
+        });
+    }
+});
 
 app.post('/api/create-subaccount', async (req, res) => {
     try {
@@ -381,6 +1046,20 @@ app.post('/webhook/paystack', async (req, res) => {
         console.error("Webhook processing error:", err);
         res.status(500).send('Server error');
     }
+});
+
+app.use((err, req, res, next) => {
+    console.error(
+        `Request failed for ${req.method} ${req.originalUrl}:`,
+        err?.stack || err
+    );
+    if (res.headersSent) return next(err);
+    const status = Number.isInteger(err.status) && err.status >= 400 && err.status < 600
+        ? err.status
+        : 500;
+    return res.status(status).json({
+        error: status === 413 ? 'Request body is too large.' : (err.message || 'Internal server error.')
+    });
 });
 
 const PORT = process.env.PORT || 3000;

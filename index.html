@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>GleanWord - Novels, Poetry, Grammar & Literature</title>
-  <link rel="stylesheet" href="novel.css?v=63" />
+  <link rel="stylesheet" href="novel.css?v=64" />
   <link rel="manifest" href="manifest.json" />
 </head>
 
@@ -428,6 +428,7 @@
         <div>
           <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Category</label>
           <select id="modal-corpus-category"
+            required
             style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
             <option value="grammar">Grammar</option>
             <option value="novel">Novel</option>
@@ -435,6 +436,17 @@
             <option value="literature">Literature</option>
             <option value="comic">Comic / Manga</option>
           </select>
+        </div>
+
+        <div id="document-import-container"
+          style="margin-top: 10px; padding: 12px; background: rgba(99, 102, 241, 0.08); border: 1px dashed #6366f1; border-radius: 6px;">
+          <label for="documentImportFileInput"
+            style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; color: inherit;">
+            Import from PDF / DOCX (Novels, Grammar, Literature, Poetry, or Comic PDF)
+          </label>
+          <input type="file" id="documentImportFileInput" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem;" />
+          <small style="display: block; margin-top: 5px; opacity: 0.75;">Maximum file size: 50 MB. Comic imports require PDF.</small>
         </div>
 
         <div id="text-content-container">
@@ -657,7 +669,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://js.paystack.co/v1/inline.js"></script>
-  <script type="module" src="./novel.js?v=63"></script>
+  <script type="module" src="./novel.js?v=64"></script>
 </body>
 
 </html>
