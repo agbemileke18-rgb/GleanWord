@@ -2396,6 +2396,154 @@ authorEditorModal.style.setProperty('display', 'none', 'important');            
     }
 
     let activeEditingWorkId = null;
+    let activeWorkPurchaseCount = null;
+
+    async function manageAuthorWork(action, workId = activeEditingWorkId) {
+        const activeSupabase = window.supabaseClient || supabaseClient;
+        const { data: { session } } = await activeSupabase.auth.getSession();
+        if (!session?.access_token) {
+            throw new Error('Your session has expired. Please sign in again.');
+        }
+
+        const response = await fetch(`${BACKEND_API_BASE_URL}/author/manage-work`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ workId, action })
+        });
+        return readBackendApiResponse(response, 'Work management');
+    }
+
+    async function loadAuthorWorkLifecycle(work) {
+        const statusEl = document.getElementById('author-work-lifecycle-status');
+        const messageEl = document.getElementById('author-work-lifecycle-message');
+        const actionButtons = {
+            unpublish: document.getElementById('author-unpublish-work-btn'),
+            archive: document.getElementById('author-archive-work-btn'),
+            republish: document.getElementById('author-republish-work-btn'),
+            delete: document.getElementById('author-delete-work-btn')
+        };
+        Object.values(actionButtons).forEach(button => {
+            if (button) button.style.display = 'none';
+        });
+        if (statusEl) statusEl.textContent = 'Checking work status…';
+        if (messageEl) messageEl.textContent = 'Loading completed purchases…';
+
+        try {
+            const details = await manageAuthorWork('inspect', work.id);
+            activeWorkPurchaseCount = details.purchaseCount;
+            const statusLabels = {
+                approved: 'Published',
+                Approved: 'Published',
+                pending: 'Pending review',
+                unpublished: 'Unpublished',
+                archived: 'Archived'
+            };
+            const isPublished = details.status === 'approved' || details.status === 'Approved';
+            const hasPurchases = details.purchaseCount > 0;
+            if (statusEl) {
+                statusEl.textContent = `${statusLabels[details.status] || 'Work status'} · ${details.purchaseCount} completed purchase${details.purchaseCount === 1 ? '' : 's'}`;
+            }
+
+            if (hasPurchases) {
+                if (messageEl) {
+                    messageEl.textContent = details.status === 'archived'
+                        ? 'Archived works are hidden from new sales. Existing buyers keep access in their library. Submit for review to request republication.'
+                        : 'Archive to stop new sales. Existing buyers keep access to this work in their library.';
+                }
+                if (details.status !== 'archived' && actionButtons.archive) actionButtons.archive.style.display = 'inline-block';
+            } else if (details.status === 'pending') {
+                if (messageEl) messageEl.textContent = 'This work is waiting for review. It is not shown in the storefront until approved.';
+            } else if (messageEl) {
+                messageEl.textContent = isPublished
+                    ? 'Unpublish to hide this work from the storefront, or permanently delete it. There are no completed purchases.'
+                    : 'There are no completed purchases. You may submit this work for review again or permanently delete it.';
+            }
+
+            if (!hasPurchases && isPublished && actionButtons.unpublish) {
+                actionButtons.unpublish.style.display = 'inline-block';
+            }
+            if (['unpublished', 'archived'].includes(details.status) && actionButtons.republish) {
+                actionButtons.republish.style.display = 'inline-block';
+            }
+            if (!hasPurchases && actionButtons.delete) {
+                actionButtons.delete.style.display = 'inline-block';
+            }
+        } catch (error) {
+            activeWorkPurchaseCount = null;
+            if (statusEl) statusEl.textContent = 'Work controls unavailable';
+            if (messageEl) messageEl.textContent = error.message || 'Could not verify completed purchases.';
+            console.error('Failed to load author work status:', error);
+        }
+    }
+
+    async function runAuthorWorkAction(action, successMessage) {
+        try {
+            await manageAuthorWork(action);
+            if (successMessage) alert(successMessage);
+            const currentWork = (window.currentAuthorWorks || []).find(work => work.id === activeEditingWorkId) ||
+                { id: activeEditingWorkId };
+            await loadAuthorWorkLifecycle(currentWork);
+        } catch (error) {
+            alert(error.message || 'Could not update this work.');
+            await loadAuthorWorkLifecycle({ id: activeEditingWorkId });
+        }
+    }
+
+    document.getElementById('author-unpublish-work-btn')?.addEventListener('click', () => {
+        runAuthorWorkAction('unpublish', 'This work is now unpublished and hidden from the storefront.');
+    });
+    document.getElementById('author-archive-work-btn')?.addEventListener('click', () => {
+        runAuthorWorkAction(
+            'archive',
+            'This work is archived and unavailable for new purchases. Existing buyers retain library access.'
+        );
+    });
+    document.getElementById('author-republish-work-btn')?.addEventListener('click', () => {
+        if (confirm('Submit this work for review? It will remain off the storefront until it is approved.')) {
+            runAuthorWorkAction('republish', 'Your work has been submitted for review.');
+        }
+    });
+
+    const deleteWorkModal = document.getElementById('author-delete-work-modal');
+    const deleteWorkButton = document.getElementById('author-delete-work-btn');
+    const cancelDeleteWorkButton = document.getElementById('cancel-author-delete-work-btn');
+    const confirmDeleteWorkButton = document.getElementById('confirm-author-delete-work-btn');
+    deleteWorkButton?.addEventListener('click', () => {
+        if (activeWorkPurchaseCount !== 0 || !deleteWorkModal) return;
+        deleteWorkModal.style.display = 'flex';
+        confirmDeleteWorkButton?.focus();
+    });
+    cancelDeleteWorkButton?.addEventListener('click', () => {
+        if (deleteWorkModal) deleteWorkModal.style.display = 'none';
+    });
+    deleteWorkModal?.addEventListener('click', event => {
+        if (event.target === deleteWorkModal) deleteWorkModal.style.display = 'none';
+    });
+    confirmDeleteWorkButton?.addEventListener('click', async () => {
+        if (activeWorkPurchaseCount !== 0 || !activeEditingWorkId) return;
+        confirmDeleteWorkButton.disabled = true;
+        confirmDeleteWorkButton.textContent = 'Deleting…';
+        try {
+            await manageAuthorWork('delete');
+            if (deleteWorkModal) deleteWorkModal.style.display = 'none';
+            document.getElementById('author-editor-modal')?.style.setProperty('display', 'none', 'important');
+            window.currentAuthorWorks = (window.currentAuthorWorks || [])
+                .filter(work => work.id !== activeEditingWorkId);
+            activeEditingWorkId = null;
+            window.activeEditingWorkId = null;
+            alert('The work and its content have been permanently deleted.');
+        } catch (error) {
+            if (deleteWorkModal) deleteWorkModal.style.display = 'none';
+            alert(error.message || 'Could not delete this work.');
+            await loadAuthorWorkLifecycle({ id: activeEditingWorkId });
+        } finally {
+            confirmDeleteWorkButton.disabled = false;
+            confirmDeleteWorkButton.textContent = 'Delete permanently';
+        }
+    });
 
     async function openAuthorDashboard(book) {
         if (!book || !book.id) return;
@@ -2412,6 +2560,7 @@ authorEditorModal.style.setProperty('display', 'none', 'important');            
         if (modal) {
             modal.style.setProperty('display', 'flex', 'important');
         }
+        await loadAuthorWorkLifecycle(book);
 
         const isComic = book.category && book.category.toLowerCase() === 'comic';
         const chapterPanel = document.getElementById('chapter-editor-panel');

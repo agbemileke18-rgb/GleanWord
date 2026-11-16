@@ -145,6 +145,192 @@ async function requestMatchesUser(req, userId) {
     return !error && user?.id === userId;
 }
 
+async function listStorageFilesRecursively(bucketName, folderPath) {
+    const files = [];
+    const folders = [folderPath];
+
+    while (folders.length > 0) {
+        const currentFolder = folders.pop();
+        let offset = 0;
+
+        while (true) {
+            const { data, error } = await supabaseAdmin.storage
+                .from(bucketName)
+                .list(currentFolder, { limit: 1000, offset });
+            if (error) throw error;
+
+            const entries = data || [];
+            for (const entry of entries) {
+                const entryPath = `${currentFolder}/${entry.name}`;
+                if (entry.id === null) {
+                    folders.push(entryPath);
+                } else {
+                    files.push(entryPath);
+                }
+            }
+
+            if (entries.length < 1000) break;
+            offset += entries.length;
+        }
+    }
+
+    return files;
+}
+
+app.post('/api/author/manage-work', async (req, res) => {
+    try {
+        const authorization = req.headers.authorization || '';
+        const accessToken = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
+        if (!accessToken) return res.status(401).json({ error: 'Sign in to manage this work.' });
+
+        const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+        if (authError || !user) return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
+
+        const { workId, action } = req.body || {};
+        if (typeof workId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workId)) {
+            return res.status(400).json({ error: 'A valid work ID is required.' });
+        }
+        if (!['inspect', 'unpublish', 'archive', 'republish', 'delete'].includes(action)) {
+            return res.status(400).json({ error: 'Unsupported work management action.' });
+        }
+
+        const { data: work, error: workError } = await supabaseAdmin
+            .from('works')
+            .select('id, author_id, status, source_file_path')
+            .eq('id', workId)
+            .eq('author_id', user.id)
+            .maybeSingle();
+        if (workError) throw workError;
+        if (!work) return res.status(404).json({ error: 'This work was not found for your account.' });
+
+        const getPurchaseCount = async () => {
+            const { count, error } = await supabaseAdmin
+                .from('user_purchases')
+                .select('corpus_id', { count: 'exact', head: true })
+                .eq('corpus_id', work.id);
+            if (error) throw error;
+            if (!Number.isInteger(count)) throw new Error('Could not determine the completed purchase count.');
+            return count;
+        };
+        let purchaseCount = await getPurchaseCount();
+
+        if (action === 'inspect') {
+            return res.json({ workId: work.id, status: work.status, purchaseCount });
+        }
+
+        const updateStatus = async status => {
+            const { data, error } = await supabaseAdmin
+                .from('works')
+                .update({ status })
+                .eq('id', work.id)
+                .eq('author_id', user.id)
+                .select('id, status')
+                .single();
+            if (error) throw error;
+            return data;
+        };
+
+        if (action === 'unpublish') {
+            if (work.status === 'unpublished') {
+                return res.json({ workId: work.id, status: work.status, purchaseCount });
+            }
+            if (!['approved', 'Approved'].includes(work.status)) {
+                return res.status(409).json({ error: 'Only published works can be unpublished.' });
+            }
+            const updatedWork = await updateStatus('unpublished');
+            return res.json({ workId: updatedWork.id, status: updatedWork.status, purchaseCount });
+        }
+
+        if (action === 'archive') {
+            if (purchaseCount < 1) {
+                return res.status(409).json({ error: 'Archive is for works with completed purchases. You can unpublish or delete this work instead.' });
+            }
+            if (work.status === 'archived') {
+                return res.json({ workId: work.id, status: work.status, purchaseCount });
+            }
+            const updatedWork = await updateStatus('archived');
+            return res.json({ workId: updatedWork.id, status: updatedWork.status, purchaseCount });
+        }
+
+        if (action === 'republish') {
+            if (!['unpublished', 'archived'].includes(work.status)) {
+                return res.status(409).json({ error: 'Only unpublished or archived works can be submitted for review.' });
+            }
+            const updatedWork = await updateStatus('pending');
+            return res.json({
+                workId: updatedWork.id,
+                status: updatedWork.status,
+                purchaseCount,
+                message: 'Your work has been submitted for review and will return to the storefront after approval.'
+            });
+        }
+
+        if (purchaseCount > 0) {
+            return res.status(409).json({
+                error: 'This work has completed purchases and cannot be permanently deleted. Archive it to stop new sales while preserving buyers’ library access.'
+            });
+        }
+
+        if (['approved', 'Approved'].includes(work.status)) {
+            await updateStatus('unpublished');
+            purchaseCount = await getPurchaseCount();
+            if (purchaseCount > 0) {
+                return res.status(409).json({
+                    error: 'A purchase completed while deletion was starting. The work has been unpublished and must be archived instead.'
+                });
+            }
+        }
+
+        const uploadPrefix = `${user.id}/${work.id}`;
+        if (work.source_file_path && !work.source_file_path.startsWith(`${uploadPrefix}/`)) {
+            throw new Error('The saved source file path is outside this author’s work folder; deletion was stopped.');
+        }
+        const [rawFiles, comicFiles] = await Promise.all([
+            listStorageFilesRecursively('book-uploads', uploadPrefix),
+            listStorageFilesRecursively('comic-pages', work.id)
+        ]);
+        if (work.source_file_path) rawFiles.push(work.source_file_path);
+
+        for (const [bucketName, paths] of [
+            ['book-uploads', [...new Set(rawFiles)]],
+            ['comic-pages', [...new Set(comicFiles)]]
+        ]) {
+            for (let offset = 0; offset < paths.length; offset += 1000) {
+                const { error } = await supabaseAdmin.storage
+                    .from(bucketName)
+                    .remove(paths.slice(offset, offset + 1000));
+                if (error) throw error;
+            }
+        }
+
+        const { error: chaptersError } = await supabaseAdmin
+            .from('chapters')
+            .delete()
+            .eq('work_id', work.id);
+        if (chaptersError) throw chaptersError;
+
+        const { error: comicPagesError } = await supabaseAdmin
+            .from('comic_pages')
+            .delete()
+            .eq('book_id', work.id);
+        if (comicPagesError) throw comicPagesError;
+
+        const { data: deletedWork, error: deleteWorkError } = await supabaseAdmin
+            .from('works')
+            .delete()
+            .eq('id', work.id)
+            .eq('author_id', user.id)
+            .select('id')
+            .single();
+        if (deleteWorkError) throw deleteWorkError;
+
+        return res.json({ workId: deletedWork.id, deleted: true });
+    } catch (error) {
+        console.error('Author work management failed:', error?.stack || error);
+        return res.status(500).json({ error: error.message || 'Could not update this work.' });
+    }
+});
+
 function splitDocumentIntoSections(text, category, pdfPages = []) {
     const rawPages = String(text || '')
         .replace(/\u0000/g, '')
