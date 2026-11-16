@@ -1,5 +1,10 @@
 import { normalizeYorubaText } from './utils/normalizeYoruba.js';
-import { saveCorpusText } from './services/corpusService.js';
+import {
+    ensureWorkTitleAvailable,
+    getCorpusSlug,
+    getWorkSaveErrorMessage,
+    saveCorpusText
+} from './services/corpusService.js';
 
 const isLocalDevelopment = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 const BACKEND_API_BASE_URL = isLocalDevelopment
@@ -1554,6 +1559,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (documentFile) {
                 if (submitBtn) submitBtn.textContent = 'Creating imported book...';
                 const generatedSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                await ensureWorkTitleAvailable(activeSupabase, title, generatedSlug);
                 console.log('[book-import] Creating work record', {
                     title,
                     category,
@@ -1685,6 +1691,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (isComic) {
                 // --- COMIC UPLOAD PATH ---
                 const generatedSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                await ensureWorkTitleAvailable(activeSupabase, title, generatedSlug);
 
                 const { data: workData, error: workError } = await activeSupabase
                     .from('works')
@@ -1745,6 +1752,7 @@ if (insertErr) {
 
             } else {
                 // --- REGULAR NOVEL / TEXT / GRAMMAR UPLOAD PATH ---
+                await ensureWorkTitleAvailable(activeSupabase, title, getCorpusSlug(title));
                 let coverUrl = '';
                 const fileInput = document.getElementById('modal-corpus-cover');
                 if (fileInput && fileInput.files && fileInput.files.length > 0) {
@@ -1792,7 +1800,7 @@ if (insertErr) {
 
         } catch (err) {
             console.error('Submission error:', err);
-            alert(err.message || 'Failed to save resource. Check console for details.');
+            alert(getWorkSaveErrorMessage(err));
             if (submitBtn) {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Submit';
@@ -2350,10 +2358,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (userWorks && userWorks.length > 0) {
+                window.currentAuthorWorks = userWorks;
+                currentAuthorWorks = userWorks;
                 if (userWorks.length === 1) {
                     openAuthorDashboard(userWorks[0]);
                 } else {
-                    window.currentAuthorWorks = userWorks;
                     renderBookSelectionModal(userWorks);
                 }
                 return;
@@ -2397,6 +2406,7 @@ authorEditorModal.style.setProperty('display', 'none', 'important');            
 
     let activeEditingWorkId = null;
     let activeWorkPurchaseCount = null;
+    let activeEditingWork = null;
 
     async function manageAuthorWork(action, workId = activeEditingWorkId) {
         const activeSupabase = window.supabaseClient || supabaseClient;
@@ -2507,6 +2517,228 @@ authorEditorModal.style.setProperty('display', 'none', 'important');            
         }
     });
 
+    const editWorkTitleInput = document.getElementById('edit-work-title');
+    const editWorkCategoryInput = document.getElementById('edit-work-category');
+    const editWorkDescriptionInput = document.getElementById('edit-work-description');
+    const editWorkCoverUrlInput = document.getElementById('edit-work-cover-url');
+    const editWorkCoverFileInput = document.getElementById('edit-work-cover-file');
+    const editWorkCoverPreview = document.getElementById('edit-work-cover-preview');
+    const editWorkAccessInput = document.getElementById('edit-work-access');
+    const editWorkPriceInput = document.getElementById('edit-work-price');
+    let editCoverPreviewObjectUrl = null;
+
+    function updateEditCoverPreview(url) {
+        if (!editWorkCoverPreview) return;
+        if (url) {
+            editWorkCoverPreview.src = url;
+            editWorkCoverPreview.style.display = 'block';
+        } else {
+            editWorkCoverPreview.removeAttribute('src');
+            editWorkCoverPreview.style.display = 'none';
+        }
+    }
+
+    function updateEditPriceRequirement() {
+        if (!editWorkAccessInput || !editWorkPriceInput) return;
+        const isPaid = editWorkAccessInput.value === 'purchase';
+        editWorkPriceInput.required = isPaid;
+        editWorkPriceInput.disabled = !isPaid;
+        if (!isPaid) editWorkPriceInput.value = '0';
+    }
+
+    editWorkCoverUrlInput?.addEventListener('input', () => {
+        if (!editWorkCoverFileInput?.files?.length) {
+            updateEditCoverPreview(editWorkCoverUrlInput.value.trim());
+        }
+    });
+    editWorkCoverFileInput?.addEventListener('change', () => {
+        if (editCoverPreviewObjectUrl) URL.revokeObjectURL(editCoverPreviewObjectUrl);
+        editCoverPreviewObjectUrl = null;
+        const file = editWorkCoverFileInput.files?.[0];
+        if (file) {
+            editCoverPreviewObjectUrl = URL.createObjectURL(file);
+            updateEditCoverPreview(editCoverPreviewObjectUrl);
+        } else {
+            updateEditCoverPreview(editWorkCoverUrlInput?.value.trim() || '');
+        }
+    });
+    editWorkAccessInput?.addEventListener('change', updateEditPriceRequirement);
+
+    function generateEditedWorkSlug(title, work) {
+        if (work.category === 'comic') {
+            return title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        }
+        if (work.source_file_path) {
+            return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        }
+        return getCorpusSlug(title);
+    }
+
+    async function refreshAuthorWorkList(updatedWork) {
+        const activeSupabase = window.supabaseClient || supabaseClient;
+        const { data: { session } } = await activeSupabase.auth.getSession();
+        if (!session?.user?.id) return;
+
+        const { data: works, error } = await activeSupabase
+            .from('works')
+            .select('*')
+            .eq('author_id', session.user.id);
+        if (error) {
+            console.error('Could not refresh the author work list:', error);
+            const currentList = window.currentAuthorWorks || currentAuthorWorks;
+            const refreshed = currentList.map(work => work.id === updatedWork.id ? updatedWork : work);
+            window.currentAuthorWorks = refreshed;
+            currentAuthorWorks = refreshed;
+            return;
+        }
+
+        window.currentAuthorWorks = works || [];
+        currentAuthorWorks = window.currentAuthorWorks;
+    }
+
+    document.getElementById('save-work-metadata-btn')?.addEventListener('click', async event => {
+        const saveButton = event.currentTarget;
+        if (!activeEditingWork || !activeEditingWorkId) {
+            alert('Select a work before editing its details.');
+            return;
+        }
+
+        const title = editWorkTitleInput?.value.trim() || '';
+        const category = editWorkCategoryInput?.value || '';
+        const description = editWorkDescriptionInput?.value.trim() || '';
+        const accessType = editWorkAccessInput?.value || '';
+        const priceValue = editWorkPriceInput?.value.trim() || '';
+        const isPaid = accessType === 'purchase';
+        const price = isPaid ? Number(priceValue) : 0;
+
+        if (!title) {
+            alert('Enter a book title.');
+            editWorkTitleInput?.focus();
+            return;
+        }
+        if (!WORK_CATEGORY_VALUES.includes(category)) {
+            alert('Choose a valid book category.');
+            editWorkCategoryInput?.focus();
+            return;
+        }
+        if (!['free', 'purchase'].includes(accessType)) {
+            alert('Choose Free or Paid access.');
+            editWorkAccessInput?.focus();
+            return;
+        }
+        if (isPaid && (!Number.isFinite(price) || price <= 0)) {
+            alert('Enter a valid price greater than ₦0 for a paid book.');
+            editWorkPriceInput?.focus();
+            return;
+        }
+
+        const changedTitle = title !== activeEditingWork.title;
+        const slug = changedTitle
+            ? generateEditedWorkSlug(title, activeEditingWork)
+            : activeEditingWork.slug;
+        const enteredCoverUrl = editWorkCoverUrlInput?.value.trim() || '';
+        const selectedCoverFile = editWorkCoverFileInput?.files?.[0] || null;
+        const coverUrlChanged = enteredCoverUrl !== (activeEditingWork.cover_url || '');
+
+        if (!selectedCoverFile && coverUrlChanged && enteredCoverUrl) {
+            let parsedCoverUrl;
+            try {
+                parsedCoverUrl = new URL(enteredCoverUrl);
+            } catch {
+                alert('Enter a valid cover image URL.');
+                editWorkCoverUrlInput?.focus();
+                return;
+            }
+            if (!['http:', 'https:'].includes(parsedCoverUrl.protocol)) {
+                alert('Cover image URLs must start with http:// or https://.');
+                editWorkCoverUrlInput?.focus();
+                return;
+            }
+        }
+
+        saveButton.disabled = true;
+        saveButton.textContent = 'Saving…';
+        let uploadedCoverPath = null;
+        let workUpdateCommitted = false;
+        const activeSupabase = window.supabaseClient || supabaseClient;
+        try {
+            const { data: { session } } = await activeSupabase.auth.getSession();
+            if (!session?.user?.id) throw new Error('Your session expired. Please sign in again.');
+
+            if (changedTitle) {
+                await ensureWorkTitleAvailable(activeSupabase, title, slug, activeEditingWorkId);
+            }
+
+            let coverUrl = activeEditingWork.cover_url || '';
+            if (selectedCoverFile) {
+                const extension = selectedCoverFile.name.split('.').pop()?.toLowerCase() || 'img';
+                const coverPath = `cover_${Date.now()}_${Math.random().toString(36).slice(2)}.${extension}`;
+                const { error: coverUploadError } = await activeSupabase.storage
+                    .from('covers')
+                    .upload(coverPath, selectedCoverFile, {
+                        contentType: selectedCoverFile.type || undefined,
+                        upsert: false
+                    });
+                if (coverUploadError) throw coverUploadError;
+                uploadedCoverPath = coverPath;
+                coverUrl = activeSupabase.storage
+                    .from('covers')
+                    .getPublicUrl(coverPath).data.publicUrl;
+            } else if (coverUrlChanged) {
+                coverUrl = enteredCoverUrl;
+            }
+
+            const updatePayload = {
+                title,
+                slug,
+                category,
+                description,
+                cover_url: coverUrl,
+                access_type: accessType,
+                price
+            };
+            const { data: updatedWork, error } = await activeSupabase
+                .from('works')
+                .update(updatePayload)
+                .eq('id', activeEditingWorkId)
+                .eq('author_id', session.user.id)
+                .select('*')
+                .single();
+            if (error) throw error;
+
+            workUpdateCommitted = true;
+            activeEditingWork = updatedWork;
+            await refreshAuthorWorkList(updatedWork);
+            if (editWorkCoverFileInput) editWorkCoverFileInput.value = '';
+            if (editCoverPreviewObjectUrl) URL.revokeObjectURL(editCoverPreviewObjectUrl);
+            editCoverPreviewObjectUrl = null;
+            if (editWorkCoverUrlInput) editWorkCoverUrlInput.value = updatedWork.cover_url || '';
+            updateEditCoverPreview(updatedWork.cover_url || '');
+            try {
+                await openAuthorDashboard(updatedWork);
+            } catch (refreshError) {
+                console.error('Book details were saved, but the editor could not refresh:', refreshError);
+            }
+            alert('Book details saved successfully.');
+        } catch (error) {
+            if (uploadedCoverPath && !workUpdateCommitted) {
+                try {
+                    const { error: cleanupError } = await activeSupabase.storage
+                        .from('covers')
+                        .remove([uploadedCoverPath]);
+                    if (cleanupError) console.error('Failed to remove unused uploaded cover:', cleanupError);
+                } catch (cleanupError) {
+                    console.error('Failed to remove unused uploaded cover:', cleanupError);
+                }
+            }
+            console.error('Failed to save book details:', error);
+            alert(getWorkSaveErrorMessage(error));
+        } finally {
+            saveButton.disabled = false;
+            saveButton.textContent = 'Save Book Details';
+        }
+    });
+
     const deleteWorkModal = document.getElementById('author-delete-work-modal');
     const deleteWorkButton = document.getElementById('author-delete-work-btn');
     const cancelDeleteWorkButton = document.getElementById('cancel-author-delete-work-btn');
@@ -2532,6 +2764,8 @@ authorEditorModal.style.setProperty('display', 'none', 'important');            
             document.getElementById('author-editor-modal')?.style.setProperty('display', 'none', 'important');
             window.currentAuthorWorks = (window.currentAuthorWorks || [])
                 .filter(work => work.id !== activeEditingWorkId);
+            currentAuthorWorks = window.currentAuthorWorks;
+            activeEditingWork = null;
             activeEditingWorkId = null;
             window.activeEditingWorkId = null;
             alert('The work and its content have been permanently deleted.');
@@ -2549,12 +2783,28 @@ authorEditorModal.style.setProperty('display', 'none', 'important');            
         if (!book || !book.id) return;
 
         activeEditingWorkId = book.id;
+        activeEditingWork = book;
         window.activeEditingWorkId = book.id;
 
         const titleEl = document.getElementById('editorBookTitle');
         if (titleEl) {
             titleEl.textContent = `Editing: ${book.title || ''}`;
         }
+        if (editWorkTitleInput) editWorkTitleInput.value = book.title || '';
+        if (editWorkCategoryInput) editWorkCategoryInput.value = book.category || 'grammar';
+        if (editWorkDescriptionInput) editWorkDescriptionInput.value = book.description || '';
+        if (editWorkCoverFileInput) editWorkCoverFileInput.value = '';
+        if (editCoverPreviewObjectUrl) URL.revokeObjectURL(editCoverPreviewObjectUrl);
+        editCoverPreviewObjectUrl = null;
+        if (editWorkCoverUrlInput) editWorkCoverUrlInput.value = book.cover_url || '';
+        updateEditCoverPreview(book.cover_url || '');
+        if (editWorkAccessInput) {
+            editWorkAccessInput.value = book.access_type === 'purchase' ? 'purchase' : 'free';
+        }
+        if (editWorkPriceInput) {
+            editWorkPriceInput.value = book.access_type === 'purchase' ? String(book.price ?? '') : '0';
+        }
+        updateEditPriceRequirement();
 
         const modal = document.getElementById('author-editor-modal');
         if (modal) {

@@ -1,5 +1,53 @@
 import { normalizeYorubaText } from '../utils/normalizeYoruba.js';
 
+export const DUPLICATE_WORK_TITLE_MESSAGE =
+    'This book title has already been used and cannot be duplicated. Please choose another book title or add a number or character to make it unique.';
+
+export function getCorpusSlug(title) {
+    return normalizeYorubaText(title)
+        .toLowerCase()
+        .replace(/[^\w ]+/g, '')
+        .replace(/ +/g, '-');
+}
+
+export async function ensureWorkTitleAvailable(supabaseClient, title, slug, excludeWorkId = null) {
+    const escapedTitlePattern = String(title).replace(/[\\%_]/g, '\\$&');
+    let slugQuery = supabaseClient
+        .from('works')
+        .select('id')
+        .eq('slug', slug)
+        .limit(1);
+    let titleQuery = supabaseClient
+        .from('works')
+        .select('id')
+        .ilike('title', escapedTitlePattern)
+        .limit(1);
+
+    if (excludeWorkId) {
+        slugQuery = slugQuery.neq('id', excludeWorkId);
+        titleQuery = titleQuery.neq('id', excludeWorkId);
+    }
+
+    const [{ data: slugMatches, error: slugError }, { data: titleMatches, error: titleError }] =
+        await Promise.all([slugQuery, titleQuery]);
+    if (slugError) throw slugError;
+    if (titleError) throw titleError;
+    if (slugMatches?.length || titleMatches?.length) {
+        throw new Error(DUPLICATE_WORK_TITLE_MESSAGE);
+    }
+}
+
+export function getWorkSaveErrorMessage(error) {
+    const message = String(error?.message || '');
+    if (
+        error?.code === '23505' ||
+        /slug|duplicate key/i.test(message)
+    ) {
+        return DUPLICATE_WORK_TITLE_MESSAGE;
+    }
+    return message || 'Failed to save this book. Please try again.';
+}
+
 export async function saveCorpusText(supabaseClient, {
     title,
     author,
@@ -20,10 +68,9 @@ export async function saveCorpusText(supabaseClient, {
     const cleanContent = normalizeYorubaText(content);
     const cleanDescription = normalizeYorubaText(description);
 
-    const slug = cleanTitle
-        .toLowerCase()
-        .replace(/[^\w ]+/g, '')
-        .replace(/ +/g, '-');
+    const slug = getCorpusSlug(cleanTitle);
+
+    await ensureWorkTitleAvailable(supabaseClient, cleanTitle, slug);
 
     const { data: workData, error: workError } = await supabaseClient
         .from('works')
@@ -46,7 +93,7 @@ export async function saveCorpusText(supabaseClient, {
 
     if (workError) {
         console.error('Supabase Insertion error:', workError.message);
-        throw new Error(workError.message);
+        throw new Error(getWorkSaveErrorMessage(workError));
     }
 
     const newWork = workData[0];
