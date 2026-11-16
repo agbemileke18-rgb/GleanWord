@@ -1013,18 +1013,35 @@ body.light-mode .menu-toggle-btn,
     flex-direction: row !important;
   }
 
-  #author-editor-modal .modal-content > div:nth-child(2) {
+  #author-editor-modal #chapter-editor-panel {
     flex-direction: column !important;
     gap: 16px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
   }
 
-  #author-editor-modal div[style*="width: 280px"] {
+  #author-editor-modal #chapter-editor-panel > div:first-of-type {
     width: 100% !important;
+    flex: 0 0 180px !important;
     border-right: none !important;
-    border-bottom: 1px solid var(--border-color, #333);
-    padding-bottom: 12px;
-    max-height: 150px;
-    overflow-y: auto;
+    border-bottom: 1px solid var(--border-color, #333) !important;
+    padding-right: 0 !important;
+    padding-bottom: 12px !important;
+    max-height: 200px !important;
+    overflow-y: auto !important;
+    box-sizing: border-box !important;
+  }
+
+  #author-editor-modal #chapter-editor-panel > div:nth-of-type(2) {
+    width: 100% !important;
+    flex: 1 0 360px !important;
+    min-height: 360px !important;
+    overflow: visible !important;
+  }
+
+  #author-editor-modal #editChapterContentInput {
+    min-height: 260px !important;
+    resize: vertical !important;
   }
 }
 
