@@ -6,6 +6,12 @@ import {
     saveCorpusText
 } from './services/corpusService.js';
 
+function trackEvent(eventName, params = {}) {
+    if (typeof window.gtag === 'function') {
+        window.gtag('event', eventName, params);
+    }
+}
+
 const isLocalDevelopment = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 const BACKEND_API_BASE_URL = isLocalDevelopment
     ? 'http://localhost:3000/api'
@@ -79,6 +85,11 @@ export async function handleTextSubmission(
             price: price,
             status: 'pending',
             author_id: authorId
+        });
+        trackEvent('submit_work', {
+            work_id: savedRecord.id,
+            work_title: title,
+            category
         });
         return savedRecord;
 
@@ -284,6 +295,11 @@ let currentWorkChapters = [];
 
 async function openReaderForWork(work) {
     window.currentwork = work;
+    trackEvent('view_book', {
+        book_id: work.id,
+        book_title: work.title,
+        category: work.category
+    });
 
     catalogView.classList.add('hidden');
     readerView.classList.remove('hidden');
@@ -1597,6 +1613,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     .select()
                     .single();
                 if (workError) throw workError;
+                trackEvent('submit_work', {
+                    work_id: workData.id,
+                    work_title: workData.title,
+                    category: workData.category
+                });
                 console.log('[book-import] Work record created', { workId: workData.id, category });
 
                 const extension = documentFile.name.split('.').pop().toLowerCase();
@@ -1710,6 +1731,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (workError) throw workError;
                 const activeWorkId = workData.id;
+                trackEvent('submit_work', {
+                    work_id: workData.id,
+                    work_title: workData.title,
+                    category: workData.category
+                });
 
                 if (submitBtn) submitBtn.textContent = 'Uploading comic pages...';
                 const comicFilesArray = Array.from(selectedComicFiles);
@@ -1939,6 +1965,7 @@ async function verifyOtpCode(userEmail, token) {
     if (submitBtn) submitBtn.disabled = true;
 
     try {
+        let signupVerified = false;
         let { data, error } = await supabaseClient.auth.verifyOtp({
             email: emailToVerify,
             token: cleanToken,
@@ -1953,6 +1980,7 @@ async function verifyOtpCode(userEmail, token) {
             });
             data = signupAttempt.data;
             error = signupAttempt.error;
+            signupVerified = !error;
         }
 
         if (error) throw error;
@@ -1961,6 +1989,14 @@ async function verifyOtpCode(userEmail, token) {
         const activeUser = data?.user || sessionCheck?.session?.user;
 
         if (activeUser) {
+            if (signupVerified) {
+                const signupTrackingKey = `ga4_signup_tracked_${activeUser.id}`;
+                if (!localStorage.getItem(signupTrackingKey)) {
+                    trackEvent('sign_up', { method: 'email' });
+                    localStorage.setItem(signupTrackingKey, 'true');
+                }
+            }
+
             const rawPending = localStorage.getItem('pending_subscription_email');
             const pendingPaymentEmail = rawPending ? rawPending.trim().toLowerCase() : null;
 
@@ -3757,6 +3793,13 @@ async function executeBookPayment(userEmail, work) {
         callback: function (response) {
 
             (async () => {
+                trackEvent('purchase', {
+                    transaction_id: response.reference,
+                    book_id: work.id,
+                    book_title: work.title,
+                    value: priceInNaira,
+                    currency: 'NGN'
+                });
                 const buyerEmail = response.customer && response.customer.email ? response.customer.email : userEmail;
                 const activeSupabase = window.supabaseClient || supabaseClient;
                 const { data: { session } } = await activeSupabase.auth.getSession();
@@ -3776,6 +3819,12 @@ async function executeBookPayment(userEmail, work) {
         }
     });
 
+    trackEvent('begin_checkout', {
+        book_id: work.id,
+        book_title: work.title,
+        value: priceInNaira,
+        currency: 'NGN'
+    });
     handler.openIframe();
 }
 
