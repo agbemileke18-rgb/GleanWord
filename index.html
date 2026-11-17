@@ -12,7 +12,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>GleanWord - Novels, Poetry, Grammar & Literature</title>
-  <link rel="stylesheet" href="novel.css?v=67" />
+  <link rel="stylesheet" href="novel.css?v=69" />
   <link rel="manifest" href="manifest.json" />
 </head>
 
@@ -35,6 +35,11 @@
       </nav>
 
       <button id="theme-toggle" class="icon-btn" aria-label="Toggle Theme">&#9728;</button>
+      <div class="header-search" role="search" aria-label="Search books">
+        <label class="sr-only" for="book-search-input">Search books</label>
+        <input id="book-search-input" type="text" autocomplete="off" placeholder="Search title, author, or genre…" />
+        <button id="book-search-clear" type="button" aria-label="Clear search" title="Clear search" hidden>&times;</button>
+      </div>
     </header>
 
     <main id="catalog-view" class="container">
@@ -43,6 +48,7 @@
         <p>Read free preview chapters or subscribe for full access.</p>
       </section>
 
+      <div id="search-status" class="search-status" aria-live="polite" hidden></div>
       <div class="books-grid" id="books-grid"></div>
     </main>
   </div>
@@ -99,6 +105,9 @@
       <button id="btnViewPurchases"
         style="background: transparent; border: none; color: #aaa; text-align: left; cursor: pointer; font-size: 0.9rem;">📦
         View My Purchased Books</button>
+      <button id="btnViewSavedBooks"
+        style="background: transparent; border: none; color: #aaa; text-align: left; cursor: pointer; font-size: 0.9rem;">♥
+        View My Saved Books</button>
 
       <button id="btnCancelSub"
         style="background: rgba(220, 53, 69, 0.1); border: 1px solid rgba(220, 53, 69, 0.3); color: #ff6b6b; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px;">
@@ -114,7 +123,11 @@
         <button id="font-decrease" class="btn-sm">A-</button>
         <span id="font-size-label">18px</span>
         <button id="font-increase" class="btn-sm">A+</button>
-        <button id="reader-bookmark-btn" class="icon-btn" title="Bookmark this story">🔖 Bookmark</button>
+        <button id="reader-bookmark-btn" class="icon-btn" title="Bookmark this story" aria-label="Bookmark this story"><span class="reader-bookmark-icon" aria-hidden="true">🔖</span> <span class="reader-bookmark-label">Bookmark</span></button>
+        <button id="reader-theme-toggle" class="icon-btn reader-theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark/light mode">
+          <span class="reader-theme-icon" aria-hidden="true">☾</span>
+          <span class="reader-theme-label">Dark</span>
+        </button>
       </div>
     </div>
 
@@ -202,16 +215,16 @@
       <hr class="drawer-divider" />
 
       <nav class="drawer-menu">
-        <a href="#" id="becomeAuthorBtn" class="drawer-item" style="color: #d4af37; font-weight: 600;">✏️ Become an
-          Author</a>
-        <a href="#" id="navProfile" class="drawer-item">👤 Profile & Settings</a>
-        <a href="#" id="openProjectModalBtn" class="drawer-item">🎓 Get Project Help</a>
-        <a href="#" id="drawer-reading-list-btn" class="drawer-item">📖 My Reading List</a>
-        <a href="#" id="drawer-reader-preferences-btn" class="drawer-item">⚙️ Reader Preferences</a>
-        <a href="#" id="drawer-theme-toggle" class="drawer-item">🌙 Dark Mode Toggle</a>
-        <a href="#" id="open-add-resource-btn" class="drawer-item">📤 Upload Book / Resource</a>
-        <a href="#" id="drawer-help-support-btn" class="drawer-item">❓ Help & Support</a>
-        <a href="#" id="pwa-install-btn" class="drawer-item" style="display: none;">📲 Install GleanWord App</a>
+        <a href="#" id="becomeAuthorBtn" class="drawer-item" style="color: #d4af37; font-weight: 600;"><span class="drawer-item-icon" aria-hidden="true">✏️</span><span>Become an Author</span></a>
+        <a href="#" id="navProfile" class="drawer-item"><span class="drawer-item-icon" aria-hidden="true">👤</span><span>Profile & Settings</span></a>
+        <a href="#" id="drawer-saved-books-btn" class="drawer-item"><span class="drawer-item-icon" aria-hidden="true">❤️</span><span>Saved Books</span></a>
+        <a href="#" id="openProjectModalBtn" class="drawer-item"><span class="drawer-item-icon" aria-hidden="true">🎓</span><span>Get Project Help</span></a>
+        <a href="#" id="drawer-reading-list-btn" class="drawer-item"><span class="drawer-item-icon" aria-hidden="true">📖</span><span>My Reading List</span></a>
+        <a href="#" id="drawer-reader-preferences-btn" class="drawer-item"><span class="drawer-item-icon" aria-hidden="true">⚙️</span><span>Reader Preferences</span></a>
+        <a href="#" id="drawer-theme-toggle" class="drawer-item"><span class="drawer-item-icon" aria-hidden="true">🌙</span><span>Dark Mode Toggle</span></a>
+        <a href="#" id="open-add-resource-btn" class="drawer-item"><span class="drawer-item-icon" aria-hidden="true">📤</span><span>Upload Book / Resource</span></a>
+        <a href="#" id="drawer-help-support-btn" class="drawer-item"><span class="drawer-item-icon" aria-hidden="true">❓</span><span>Help & Support</span></a>
+        <a href="#" id="pwa-install-btn" class="drawer-item" style="display: none;"><span class="drawer-item-icon" aria-hidden="true">📲</span><span>Install GleanWord App</span></a>
       </nav>
     </div>
   </aside>
@@ -521,14 +534,12 @@
         style="background: transparent; border: none; color: #fff; font-size: 1.5rem; cursor: pointer;">✕</button>
     </div>
 
-    <!-- Main Image Canvas Container -->
     <div
       style="max-width: 100%; max-height: 85vh; display: flex; justify-content: center; align-items: center; overflow: hidden;">
       <img id="comicPageImage" src="" alt="Comic Page"
         style="max-width: 100%; max-height: 85vh; object-fit: contain; user-select: none;" />
     </div>
 
-    <!-- Bottom Navigation Buttons -->
     <div style="position: absolute; bottom: 20px; display: flex; gap: 16px;">
       <button id="prevPageBtn"
         style="background: #333; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer;">Previous</button>
@@ -573,7 +584,6 @@
     <div class="modal-content"
       style="background: #1e1e1e !important; color: #ffffff !important; width: 100vw !important; height: 100vh !important; max-width: none !important; max-height: none !important; margin: 0 !important; border-radius: 0 !important; box-sizing: border-box !important; display: flex !important; flex-direction: column !important; padding: 20px !important; overflow: hidden !important;">
 
-      <!-- Compact Header (Fixed mobile title crunch) -->
       <div
         style="display: flex !important; justify-content: space-between !important; align-items: center !important; height: 32px !important; margin-bottom: 8px !important; padding-bottom: 4px !important; border-bottom: 1px solid #333333 !important; flex-shrink: 0 !important; gap: 10px !important;">
         <h2 id="editorBookTitle"
@@ -762,9 +772,24 @@
     </div>
   </div>
 
+  <div id="saved-books-modal" class="modal-overlay"
+    style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 10000; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="saved-books-title"
+      style="background: #1e1e2e; color: #fff; padding: 24px; border-radius: 14px; width: 100%; max-width: 560px; max-height: 85vh; overflow-y: auto; border: 1px solid #444;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #333; padding-bottom: 12px;">
+        <h3 id="saved-books-title" style="margin: 0; font-size: 1.2rem;">♥ Saved Books</h3>
+        <button id="close-saved-books-modal-btn" type="button" aria-label="Close saved books"
+          style="background: transparent; border: none; font-size: 1.5rem; cursor: pointer; color: inherit;">&times;</button>
+      </div>
+      <div id="saved-books-list" style="display: flex; flex-direction: column; gap: 10px;">
+        <p style="opacity: 0.7; text-align: center;">Loading your saved books...</p>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://js.paystack.co/v1/inline.js"></script>
-  <script type="module" src="./novel.js?v=67"></script>
+  <script type="module" src="./novel.js?v=69"></script>
 </body>
 
 </html>

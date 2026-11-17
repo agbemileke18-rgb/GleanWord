@@ -121,10 +121,190 @@ const booksGrid = document.getElementById('books-grid');
 const backToCatalogBtn = document.getElementById('back-to-catalog');
 const navHome = document.getElementById('nav-home');
 const categoryBtns = document.querySelectorAll('.nav-btn');
+const bookSearchInput = document.getElementById('book-search-input');
+const bookSearchClearBtn = document.getElementById('book-search-clear');
+const searchStatus = document.getElementById('search-status');
 
 const fontIncreaseBtn = document.getElementById('font-increase');
 const fontDecreaseBtn = document.getElementById('font-decrease');
 const fontSizeLabel = document.getElementById('font-size-label');
+
+const savedBookIds = new Set();
+let loadedWorks = [];
+let loadedUserPurchases = [];
+let loadedUserId = null;
+let currentSearchTerm = '';
+let searchFilterTimer = null;
+let searchAnalyticsTimer = null;
+let searchRevision = 0;
+let lastTrackedSearchRevision = -1;
+
+function normalizeSearchText(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+}
+
+function filterWorksBySearch(works, searchTerm) {
+    const query = normalizeSearchText(searchTerm);
+    if (!query) return works;
+
+    return works.filter((work) => [
+        work.title,
+        work.author,
+        work.author_name,
+        work.category,
+        work.genre
+    ].some((value) => normalizeSearchText(value).includes(query)));
+}
+
+function renderSearchStatus(searchTerm, resultCount) {
+    if (!searchStatus) return;
+    searchStatus.replaceChildren();
+
+    if (!normalizeSearchText(searchTerm)) {
+        searchStatus.hidden = true;
+        return;
+    }
+
+    searchStatus.hidden = false;
+    const message = document.createElement('span');
+    const trimmedSearch = String(searchTerm).trim();
+    message.textContent = `Showing ${resultCount} ${resultCount === 1 ? 'result' : 'results'} for "${trimmedSearch}"`;
+
+    const clearButton = document.createElement('button');
+    clearButton.type = 'button';
+    clearButton.className = 'search-clear-link';
+    clearButton.textContent = 'Clear search';
+    clearButton.addEventListener('click', clearBookSearch);
+
+    searchStatus.append(message, clearButton);
+}
+
+function renderCurrentFeed() {
+    const filteredWorks = filterWorksBySearch(loadedWorks, currentSearchTerm);
+    renderSearchStatus(currentSearchTerm, filteredWorks.length);
+    renderBooksGrid(filteredWorks);
+}
+
+function logSearchEvent(revision) {
+    if (revision !== searchRevision || lastTrackedSearchRevision === revision) return;
+    const searchTerm = currentSearchTerm.trim();
+    if (!normalizeSearchText(searchTerm)) return;
+
+    trackEvent('search', {
+        search_term: searchTerm,
+        results_count: filterWorksBySearch(loadedWorks, searchTerm).length
+    });
+    lastTrackedSearchRevision = revision;
+    clearTimeout(searchAnalyticsTimer);
+}
+
+function updateBookSearch(immediate = false) {
+    currentSearchTerm = bookSearchInput?.value || '';
+    if (bookSearchClearBtn) bookSearchClearBtn.hidden = !currentSearchTerm;
+
+    searchRevision++;
+    const revision = searchRevision;
+    clearTimeout(searchFilterTimer);
+    clearTimeout(searchAnalyticsTimer);
+
+    if (immediate) {
+        renderCurrentFeed();
+    } else {
+        searchFilterTimer = setTimeout(renderCurrentFeed, 150);
+    }
+
+    if (normalizeSearchText(currentSearchTerm)) {
+        searchAnalyticsTimer = setTimeout(() => logSearchEvent(revision), 1000);
+    }
+}
+
+function clearBookSearch() {
+    if (!bookSearchInput) return;
+    bookSearchInput.value = '';
+    updateBookSearch(true);
+    bookSearchInput.focus();
+}
+
+bookSearchInput?.addEventListener('input', () => updateBookSearch());
+bookSearchInput?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        clearTimeout(searchFilterTimer);
+        renderCurrentFeed();
+        logSearchEvent(searchRevision);
+    }
+});
+bookSearchClearBtn?.addEventListener('click', clearBookSearch);
+
+function getSavedBookIdsFromUser(user) {
+    const savedBooks = user?.user_metadata?.saved_books;
+    return Array.isArray(savedBooks) ? savedBooks.filter((id) => typeof id === 'string') : [];
+}
+
+function updateSavedBookButtons(workId) {
+    const isSaved = savedBookIds.has(String(workId));
+    document.querySelectorAll('[data-save-book-id]').forEach((button) => {
+        if (button.dataset.saveBookId !== String(workId)) return;
+        button.textContent = isSaved ? '♥ Saved' : '＋ Save';
+        button.style.color = isSaved ? '#fda4af' : '#f8fafc';
+        button.setAttribute('aria-pressed', String(isSaved));
+        button.classList.toggle('is-saved', isSaved);
+    });
+}
+
+function renderSavedBookState(user) {
+    savedBookIds.clear();
+    getSavedBookIdsFromUser(user).forEach((id) => savedBookIds.add(id));
+    document.querySelectorAll('[data-save-book-id]').forEach((button) => {
+        updateSavedBookButtons(button.dataset.saveBookId);
+    });
+}
+
+async function toggleSavedBook(work) {
+    const activeSupabase = window.supabaseClient || supabaseClient;
+    const { data: { session } } = await activeSupabase.auth.getSession();
+    if (!session?.user) {
+        promptSubscriberSignIn();
+        return;
+    }
+
+    const workId = String(work.id);
+    const wasSaved = savedBookIds.has(workId);
+    const updatedIds = wasSaved
+        ? Array.from(savedBookIds).filter((id) => id !== workId)
+        : [...savedBookIds, workId];
+
+    if (wasSaved) savedBookIds.delete(workId);
+    else savedBookIds.add(workId);
+    updateSavedBookButtons(workId);
+
+    const { data, error } = await activeSupabase.auth.updateUser({
+        data: {
+            ...session.user.user_metadata,
+            saved_books: updatedIds
+        }
+    });
+
+    if (error) {
+        renderSavedBookState(session.user);
+        console.error('Failed to update saved books:', error);
+        alert('Could not update your Saved Books. Please try again.');
+        return;
+    }
+
+    renderSavedBookState(data.user);
+    if (!wasSaved) {
+        trackEvent('add_to_wishlist', {
+            book_id: work.id,
+            book_title: work.title,
+            category: work.category
+        });
+    }
+}
 
 async function fetchWorks(category = 'all') {
     const booksGrid = document.getElementById('books-grid');
@@ -151,12 +331,23 @@ async function fetchWorks(category = 'all') {
             return;
         }
 
-        if (!works || works.length === 0) {
-            booksGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">No resources found for this category.</p>`;
-            return;
+        const activeSupabase = window.supabaseClient || supabaseClient;
+        const { data: { session } } = await activeSupabase.auth.getSession();
+        renderSavedBookState(session?.user);
+        loadedUserId = session?.user?.id || null;
+        loadedUserPurchases = [];
+
+        if (session?.user) {
+            const { data: purchases, error: purchasesError } = await activeSupabase
+                .from('user_purchases')
+                .select('corpus_id')
+                .eq('user_id', session.user.id);
+            if (purchasesError) console.error('Error fetching purchases for catalog:', purchasesError);
+            loadedUserPurchases = purchases ? purchases.map((purchase) => purchase.corpus_id) : [];
         }
 
-        renderBooksGrid(works);
+        loadedWorks = works || [];
+        renderCurrentFeed();
 
     } catch (err) {
         console.error('Failed to load works:', err);
@@ -164,8 +355,68 @@ async function fetchWorks(category = 'all') {
     }
 }
 
-async function renderBooksGrid(works) {
+async function openCatalogWork(work, userPurchases, currentUserId) {
+    if (typeof closeDrawer === 'function') closeDrawer();
+    const profilePageView = document.getElementById('profilePageView');
+    if (profilePageView && profilePageView.style.display !== 'none') {
+        profilePageView.style.display = 'none';
+        const mainAppContainer = document.getElementById('mainAppContainer');
+        if (mainAppContainer) mainAppContainer.style.display = 'block';
+    }
+
+    let purchases = userPurchases;
+    let userId = currentUserId;
+
+    if (typeof purchases === 'undefined') {
+        const activeSupabase = window.supabaseClient || supabaseClient;
+        const { data: { session } } = await activeSupabase.auth.getSession();
+        userId = session?.user?.id || null;
+        purchases = [];
+
+        if (userId) {
+            const { data, error } = await activeSupabase
+                .from('user_purchases')
+                .select('corpus_id')
+                .eq('user_id', userId);
+            if (error) {
+                console.error('Could not verify book access:', error);
+                alert('Could not verify access to this book. Please try again.');
+                return;
+            }
+            purchases = data ? data.map((purchase) => purchase.corpus_id) : [];
+        }
+    }
+
+    const isAuthor = Boolean(work.author_id && userId && work.author_id === userId);
+    const isOwned = purchases.includes(work.id);
+    if (work.access_type === 'purchase' && !isOwned && !isAuthor) {
+        triggerIndividualPurchase(work);
+        return;
+    }
+    await openReaderForWork(work);
+}
+
+function renderBooksGrid(works) {
     booksGrid.innerHTML = '';
+
+    if (!works || works.length === 0) {
+        if (normalizeSearchText(currentSearchTerm)) {
+            const emptyState = document.createElement('div');
+            emptyState.className = 'search-empty-state';
+            const message = document.createElement('p');
+            message.textContent = `No books matched "${currentSearchTerm.trim()}".`;
+            const resetButton = document.createElement('button');
+            resetButton.type = 'button';
+            resetButton.className = 'search-reset-button';
+            resetButton.textContent = 'Reset search';
+            resetButton.addEventListener('click', clearBookSearch);
+            emptyState.append(message, resetButton);
+            booksGrid.appendChild(emptyState);
+        } else {
+            booksGrid.innerHTML = '<p style="grid-column: 1/-1; text-align: center;">No resources found for this category.</p>';
+        }
+        return;
+    }
 
     const urlParams = new URLSearchParams(window.location.search);
     const targetBookQuery = urlParams.get('book');
@@ -178,19 +429,6 @@ async function renderBooksGrid(works) {
                 openReaderForWork(matchingWork);
             }
         }
-    }
-
-    const activeSupabase = window.supabaseClient || supabaseClient;
-    const { data: { session } } = await activeSupabase.auth.getSession();
-
-    let userPurchases = [];
-    if (session?.user) {
-        const { data } = await activeSupabase
-            .from('user_purchases')
-            .select('corpus_id')
-            .eq('user_id', session.user.id);
-
-        userPurchases = data ? data.map(p => p.corpus_id) : [];
     }
 
     works.forEach((work) => {
@@ -206,9 +444,10 @@ async function renderBooksGrid(works) {
         const authorName = work.author || 'Ann Alani';
 
         const isStandalone = work.access_type === 'purchase';
-        const isUserOwned = userPurchases.includes(work.id);
+        const isUserOwned = loadedUserPurchases.includes(work.id);
+        const isSaved = savedBookIds.has(String(work.id));
 
-        const currentUserId = session?.user?.id;
+        const currentUserId = loadedUserId;
         const isAuthor = work.author_id && currentUserId && work.author_id === currentUserId;
         const hasFullAccess = isUserOwned || isAuthor;
 
@@ -221,28 +460,37 @@ async function renderBooksGrid(works) {
                 badgeHTML = `<span class="badge owned" style="background:#2e7d32; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7rem; font-weight:bold;">OWNED</span>`;
                 buttonActionHTML = `<button class="btn-card-action" 
                 style="margin-top:6px; padding:4px 10px; font-size:0.75rem; background:#38bdf8; color:#0f172a; border:none; border-radius:4px; cursor:pointer;">Read Book</button>`;
-                card.onclick = () => openReaderForWork(work);
+                card.onclick = (event) => {
+                    event.stopPropagation();
+                    openCatalogWork(work, loadedUserPurchases, currentUserId);
+                };
             } else {
                 const formattedPrice = work.price ? work.price.toLocaleString() : '1,500';
                 badgeHTML = `<span class="badge paid" style="background:#e11d48; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7rem; font-weight:bold;">₦${formattedPrice}</span>`;
                 buttonActionHTML = `<button class="btn-card-action btn-buy" 
                 style="margin-top:6px; padding:4px 10px; font-size:0.75rem; background:#f59e0b; color:#0f172a; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">Buy Work — ₦${formattedPrice}</button>`;
 
-                card.onclick = (e) => {
-                    e.stopPropagation();
-                    triggerIndividualPurchase(work);
+                card.onclick = (event) => {
+                    event.stopPropagation();
+                    openCatalogWork(work, loadedUserPurchases, currentUserId);
                 };
             }
         } else if (isOfficialWork) {
             badgeHTML = `<span class="badge pass" style="background:#6366f1; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7rem; font-weight:bold;">GLEANWORD PASS</span>`;
             buttonActionHTML = `<button class="btn-card-action" 
             style="margin-top:6px; padding:4px 10px; font-size:0.75rem; background:#38bdf8; color:#0f172a; border:none; border-radius:4px; cursor:pointer;">Read Preview</button>`;
-            card.onclick = () => openReaderForWork(work);
+            card.onclick = (event) => {
+                event.stopPropagation();
+                openCatalogWork(work, loadedUserPurchases, currentUserId);
+            };
         } else {
             badgeHTML = `<span class="badge free" style="background:#10b981; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7rem; font-weight:bold;">FREE CORPUS</span>`;
             buttonActionHTML = `<button class="btn-card-action" 
             style="margin-top:6px; padding:4px 10px; font-size:0.75rem; background:#38bdf8; color:#0f172a; border:none; border-radius:4px; cursor:pointer;">Read Entry</button>`;
-            card.onclick = () => openReaderForWork(work);
+            card.onclick = (event) => {
+                event.stopPropagation();
+                openCatalogWork(work, loadedUserPurchases, currentUserId);
+            };
         }
 
         const bookSlugOrId = work.slug || work.id;
@@ -264,8 +512,14 @@ async function renderBooksGrid(works) {
         <p style="font-size: 0.75rem; color: #94a3b8; margin: 4px 0;">${escapeHtml(descriptionText)}</p>
         
         <!-- Action buttons including the new Copy Link button -->
-        <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px;">
           <div style="flex: 1;">${buttonActionHTML}</div>
+          <button type="button" class="save-book-btn${isSaved ? ' is-saved' : ''}" data-save-book-id="${escapeHtml(work.id)}" aria-pressed="${isSaved}" style="background: transparent; border: 1px solid #d94670; color: ${isSaved ? '#fda4af' : '#f8fafc'}; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; white-space: nowrap;">
+            ${isSaved ? '♥ Saved' : '＋ Save'}
+          </button>
+          <button type="button" class="book-details-btn" style="background: transparent; border: 1px solid #444; color: #cbd5e1; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; white-space: nowrap;">
+            Details
+          </button>
           <button onclick="event.stopPropagation(); copyCardLink('${directLink}')" title="Copy Direct Book Link" style="background: transparent; border: 1px solid #444; color: #d4af37; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; white-space: nowrap;">
             🔗 Copy Link
           </button>
@@ -282,12 +536,90 @@ async function renderBooksGrid(works) {
             }, { once: true });
         }
 
+        card.querySelector('.save-book-btn')?.addEventListener('click', (event) => {
+            event.stopPropagation();
+            toggleSavedBook(work);
+        });
+        card.querySelector('.book-details-btn')?.addEventListener('click', (event) => {
+            event.stopPropagation();
+            openBookDetailsModal(work);
+        });
+
         booksGrid.appendChild(card);
     });
 }
 
 function escapeHtml(str) {
     return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function openBookDetailsModal(work) {
+    if (!work?.id) return;
+
+    const activeSupabase = window.supabaseClient || supabaseClient;
+    const { data: { session } } = await activeSupabase.auth.getSession();
+    const isAuthor = session?.user?.id && work.author_id === session.user.id;
+    let isOwned = false;
+
+    if (session?.user && work.access_type === 'purchase' && !isAuthor) {
+        const { data, error } = await activeSupabase
+            .from('user_purchases')
+            .select('id')
+            .eq('user_id', session.user.id)
+            .eq('corpus_id', work.id)
+            .limit(1);
+        if (error) console.error('Could not check book ownership:', error);
+        isOwned = Boolean(data?.length);
+    }
+
+    document.getElementById('book-details-modal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'book-details-modal';
+    modal.className = 'modal-overlay';
+    modal.style.cssText = 'position:fixed; inset:0; z-index:10001; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(0,0,0,0.78);';
+
+    const isPaid = work.access_type === 'purchase';
+    const accessText = isPaid
+        ? `One-time purchase · ₦${Number(work.price || 0).toLocaleString()}`
+        : work.access_type === 'subscription'
+            ? 'GleanWord Pass'
+            : 'Free';
+    const coverUrl = work.cover_url || '/novel-512.png';
+    modal.innerHTML = `
+      <div role="dialog" aria-modal="true" aria-labelledby="book-details-title" style="position:relative; background:#1e1e2e; color:#fff; padding:24px; border-radius:14px; width:100%; max-width:480px; max-height:85vh; overflow-y:auto; border:1px solid #444;">
+        <button type="button" class="close-book-details" aria-label="Close book details" style="position:absolute; top:12px; right:14px; background:transparent; border:0; color:#fff; font-size:24px; cursor:pointer;">&times;</button>
+        <div style="display:flex; gap:16px; align-items:flex-start; padding-right:20px;">
+          <img src="${escapeHtml(coverUrl)}" alt="" style="width:92px; aspect-ratio:2/3; object-fit:cover; border-radius:6px; flex-shrink:0;">
+          <div>
+            <h2 id="book-details-title" style="font-size:1.2rem; margin:0 0 8px;">${escapeHtml(work.title || 'Untitled Book')}</h2>
+            <p style="margin:0 0 8px; color:#38bdf8;">By ${escapeHtml(work.author || work.author_name || 'GleanWord Author')}</p>
+            <p style="margin:0 0 8px; text-transform:capitalize; color:#aaa;">${escapeHtml(work.category || 'General')}</p>
+            <p style="margin:0; color:#d4af37;">${escapeHtml(accessText)}</p>
+          </div>
+        </div>
+        <p style="line-height:1.5; color:#cbd5e1; margin:18px 0;">${escapeHtml(work.description || 'No description available.')}</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="button" class="save-book-btn${savedBookIds.has(String(work.id)) ? ' is-saved' : ''}" data-save-book-id="${escapeHtml(work.id)}" aria-pressed="${savedBookIds.has(String(work.id))}" style="background:transparent; border:1px solid #d94670; color:#f8fafc; padding:10px 14px; border-radius:6px; cursor:pointer;">
+            ${savedBookIds.has(String(work.id)) ? '♥ Saved' : '＋ Save'}
+          </button>
+          <button type="button" class="open-book-from-details" style="background:#38bdf8; color:#0f172a; border:0; padding:10px 14px; border-radius:6px; font-weight:bold; cursor:pointer;">
+            ${isPaid && !isOwned && !isAuthor ? 'Buy Book' : 'Open Book'}
+          </button>
+        </div>
+      </div>
+    `;
+
+    const closeModal = () => modal.remove();
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal || event.target.closest('.close-book-details')) closeModal();
+    });
+    modal.querySelector('.save-book-btn')?.addEventListener('click', () => toggleSavedBook(work));
+    modal.querySelector('.open-book-from-details')?.addEventListener('click', () => {
+        closeModal();
+        if (isPaid && !isOwned && !isAuthor) triggerIndividualPurchase(work);
+        else openReaderForWork(work);
+    });
+    document.body.appendChild(modal);
 }
 
 let currentChapterIndex = 0;
@@ -892,21 +1224,38 @@ backToCatalogBtn.addEventListener('click', showCatalog);
 navHome.addEventListener('click', showCatalog);
 
 
-if (localStorage.getItem('theme') === 'dark') {
-    document.body.classList.add('dark-mode');
-    themeToggleBtn.innerHTML = '&#9728;';
+const readerThemeToggleBtn = document.getElementById('reader-theme-toggle');
+
+function syncThemeToggleButtons() {
+    const isDarkMode = document.body.classList.contains('dark-mode');
+    if (themeToggleBtn) {
+        themeToggleBtn.innerHTML = isDarkMode ? '&#9728;' : '&#9790;';
+    }
+    if (readerThemeToggleBtn) {
+        const icon = readerThemeToggleBtn.querySelector('.reader-theme-icon');
+        const label = readerThemeToggleBtn.querySelector('.reader-theme-label');
+        if (icon) icon.textContent = isDarkMode ? '☀' : '☾';
+        if (label) label.textContent = isDarkMode ? 'Light' : 'Dark';
+        readerThemeToggleBtn.setAttribute('aria-label', isDarkMode ? 'Switch to light mode' : 'Switch to dark mode');
+        readerThemeToggleBtn.title = isDarkMode ? 'Switch to light mode' : 'Switch to dark mode';
+    }
 }
 
-themeToggleBtn.addEventListener('click', () => {
-    document.body.classList.toggle('dark-mode');
+function setDarkMode(isDarkMode) {
+    document.body.classList.toggle('dark-mode', isDarkMode);
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+    syncThemeToggleButtons();
+}
 
-    if (document.body.classList.contains('dark-mode')) {
-        localStorage.setItem('theme', 'dark');
-        themeToggleBtn.innerHTML = '&#9728;';
-    } else {
-        localStorage.setItem('theme', 'light');
-        themeToggleBtn.innerHTML = '&#9790;';
-    }
+document.body.classList.toggle('dark-mode', localStorage.getItem('theme') === 'dark');
+syncThemeToggleButtons();
+
+themeToggleBtn?.addEventListener('click', () => {
+    setDarkMode(!document.body.classList.contains('dark-mode'));
+});
+
+readerThemeToggleBtn?.addEventListener('click', () => {
+    setDarkMode(!document.body.classList.contains('dark-mode'));
 });
 
 const drawerThemeBtn = document.getElementById('drawer-theme-toggle');
@@ -1639,14 +1988,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                         upsert: false
                     });
                 if (sourceUploadError) {
-                        console.error('[book-import] book-uploads storage upload failed', sourceUploadError);
-                        const { error: cleanupError } = await activeSupabase
-                            .from('works')
-                            .delete()
-                            .eq('id', workData.id);
-                        if (cleanupError) console.error('Failed to remove work after source upload failed:', cleanupError);
-                        throw sourceUploadError;
-                    }
+                    console.error('[book-import] book-uploads storage upload failed', sourceUploadError);
+                    const { error: cleanupError } = await activeSupabase
+                        .from('works')
+                        .delete()
+                        .eq('id', workData.id);
+                    if (cleanupError) console.error('Failed to remove work after source upload failed:', cleanupError);
+                    throw sourceUploadError;
+                }
                 console.log('[book-import] book-uploads storage upload finished', { sourceFilePath });
 
                 if (submitBtn) submitBtn.textContent = 'Extracting book content...';
@@ -1660,20 +2009,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let importResponse;
                 try {
                     importResponse = await fetch(`${BACKEND_API_BASE_URL}/import-book`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${activeSession.access_token}`
-                    },
-                    body: JSON.stringify({
-                        workId: workData.id,
-                        sourceFilePath,
-                        sourceFileType,
-                        sourceFileName: documentFile.name,
-                        sourceFileMimeType: documentFile.type,
-                        sourceFileSize: documentFile.size
-                    }),
-                    signal: importController.signal
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${activeSession.access_token}`
+                        },
+                        body: JSON.stringify({
+                            workId: workData.id,
+                            sourceFilePath,
+                            sourceFileType,
+                            sourceFileName: documentFile.name,
+                            sourceFileMimeType: documentFile.type,
+                            sourceFileSize: documentFile.size
+                        }),
+                        signal: importController.signal
                     });
                 } catch (error) {
                     if (importController.signal.aborted) {
@@ -1756,21 +2105,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                         .from('comic-pages')
                         .getPublicUrl(uniqueFilePath);
 
-                  const { data: insertedPage, error: insertErr } = await activeSupabase
-  .from('comic_pages')
-  .insert({
-    book_id: activeWorkId,
-    chapter_number: 1,
-    page_number: pageNum,
-    image_url: publicUrlData.publicUrl,
-    created_at: new Date().toISOString()
-  })
-  .select()
-  .single();
+                    const { data: insertedPage, error: insertErr } = await activeSupabase
+                        .from('comic_pages')
+                        .insert({
+                            book_id: activeWorkId,
+                            chapter_number: 1,
+                            page_number: pageNum,
+                            image_url: publicUrlData.publicUrl,
+                            created_at: new Date().toISOString()
+                        })
+                        .select()
+                        .single();
 
-if (insertErr) {
-  console.error('Insert error:', insertErr);
-}
+                    if (insertErr) {
+                        console.error('Insert error:', insertErr);
+                    }
                 }
 
                 alert('Comic book and pages successfully stored!');
@@ -2041,6 +2390,10 @@ async function verifyOtpCode(userEmail, token) {
     }
 }
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    if (['INITIAL_SESSION', 'SIGNED_IN', 'USER_UPDATED', 'SIGNED_OUT'].includes(event)) {
+        renderSavedBookState(session?.user);
+    }
+
     if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
 
         if (typeof updateDrawerSubscriptionState === 'function') {
@@ -2049,6 +2402,10 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
 
         if (typeof renderCurrentChapter === 'function') {
             renderCurrentChapter();
+        }
+
+        if (event === 'SIGNED_IN' && catalogView && !catalogView.classList.contains('hidden')) {
+            window.setTimeout(() => fetchWorks(activeCategory), 0);
         }
     }
 });
@@ -2131,6 +2488,104 @@ function showReadingListModal() {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 
+async function showSavedBooksModal() {
+    const modal = document.getElementById('saved-books-modal');
+    const list = document.getElementById('saved-books-list');
+    if (!modal || !list) return;
+    modal.style.display = 'flex';
+    list.innerHTML = '<p style="opacity:.7; text-align:center;">Loading your saved books...</p>';
+
+    const activeSupabase = window.supabaseClient || supabaseClient;
+    const { data: { session } } = await activeSupabase.auth.getSession();
+    if (!session?.user) {
+        list.innerHTML = '<p style="opacity:.7; text-align:center;">Please log in to view your Saved Books.</p>';
+        const loginButton = document.createElement('button');
+        loginButton.type = 'button';
+        loginButton.textContent = 'Log In';
+        loginButton.style.cssText = 'display:block; margin:0 auto; padding:9px 16px; border:0; border-radius:6px; background:#6366f1; color:#fff; cursor:pointer;';
+        loginButton.addEventListener('click', promptSubscriberSignIn);
+        list.appendChild(loginButton);
+        return;
+    }
+
+    renderSavedBookState(session.user);
+    const ids = Array.from(savedBookIds);
+    if (ids.length === 0) {
+        list.innerHTML = '<p style="opacity:.7; text-align:center;">You have not saved any books yet.</p>';
+        return;
+    }
+
+    try {
+        const { data: works, error } = await activeSupabase
+            .from('works')
+            .select('*')
+            .in('id', ids)
+            .in('status', ['approved', 'Approved']);
+        if (error) throw error;
+
+        if (!works?.length) {
+            list.innerHTML = '<p style="opacity:.7; text-align:center;">Your saved books are currently unavailable.</p>';
+            return;
+        }
+
+        list.innerHTML = '';
+        const visibleWorks = new Map(works.map((work) => [String(work.id), work]));
+        ids.forEach((id) => {
+            const work = visibleWorks.get(String(id));
+            if (!work) return;
+            const item = document.createElement('article');
+            item.style.cssText = 'display:flex; align-items:center; gap:12px; padding:10px; background:rgba(255,255,255,.04); border:1px solid #333; border-radius:8px; cursor:pointer;';
+
+            const cover = document.createElement('img');
+            cover.src = work.cover_url || '/novel-512.png';
+            cover.alt = '';
+            cover.style.cssText = 'width:58px; aspect-ratio:2/3; object-fit:cover; border-radius:4px; flex-shrink:0;';
+
+            const info = document.createElement('div');
+            info.style.cssText = 'flex:1; min-width:0;';
+            const title = document.createElement('strong');
+            title.textContent = work.title || 'Untitled Book';
+            title.style.cssText = 'display:block; margin-bottom:3px;';
+            const author = document.createElement('span');
+            author.textContent = `By ${work.author || work.author_name || 'GleanWord Author'}`;
+            author.style.cssText = 'display:block; font-size:.85rem; opacity:.75;';
+            const category = document.createElement('span');
+            category.textContent = work.category || 'General';
+            category.style.cssText = 'display:block; font-size:.8rem; opacity:.6; text-transform:capitalize;';
+            const price = document.createElement('span');
+            price.textContent = work.access_type === 'purchase'
+                ? `₦${Number(work.price || 0).toLocaleString()} · Purchase`
+                : work.access_type === 'subscription' ? 'GleanWord Pass' : 'Free';
+            price.style.cssText = 'display:block; font-size:.8rem; color:#d4af37; margin-top:3px;';
+            info.append(title, author, category, price);
+
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.textContent = 'Remove';
+            removeButton.setAttribute('aria-label', `Remove ${work.title || 'book'} from Saved Books`);
+            removeButton.style.cssText = 'padding:7px 9px; background:transparent; border:1px solid #9f1239; color:#fda4af; border-radius:5px; cursor:pointer; flex-shrink:0;';
+            removeButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                toggleSavedBook(work).then(() => showSavedBooksModal());
+            });
+
+            item.append(cover, info, removeButton);
+            item.addEventListener('click', () => {
+                modal.style.display = 'none';
+                openCatalogWork(work);
+            });
+            list.appendChild(item);
+        });
+
+        if (!list.children.length) {
+            list.innerHTML = '<p style="opacity:.7; text-align:center;">Your saved books are currently unavailable.</p>';
+        }
+    } catch (error) {
+        console.error('Failed to load Saved Books:', error);
+        list.innerHTML = '<p style="color:#ff6b6b; text-align:center;">Failed to load Saved Books. Please try again.</p>';
+    }
+}
+
 async function openBookFromReadingList(workId, targetChapterIndex = 0) {
     const modal = document.getElementById('reading-list-modal');
     if (modal) modal.remove();
@@ -2173,6 +2628,25 @@ if (readingListBtn) {
         showReadingListModal();
     });
 }
+
+const savedBooksNavBtn = document.getElementById('drawer-saved-books-btn');
+const savedBooksProfileBtn = document.getElementById('btnViewSavedBooks');
+const savedBooksModal = document.getElementById('saved-books-modal');
+const closeSavedBooksModalBtn = document.getElementById('close-saved-books-modal-btn');
+[closeSavedBooksModalBtn, savedBooksModal].forEach((element) => {
+    element?.addEventListener('click', (event) => {
+        if (element === closeSavedBooksModalBtn || event.target === savedBooksModal) {
+            savedBooksModal.style.display = 'none';
+        }
+    });
+});
+[savedBooksNavBtn, savedBooksProfileBtn].forEach((button) => {
+    button?.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (typeof closeDrawer === 'function') closeDrawer();
+        showSavedBooksModal();
+    });
+});
 
 const profileNavBtn = document.getElementById('navProfile');
 const profilePageView = document.getElementById('profilePageView');
@@ -2435,7 +2909,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (authorEditorModal) {
             authorEditorModal.addEventListener('click', (e) => {
                 if (e.target === authorEditorModal) {
-authorEditorModal.style.setProperty('display', 'none', 'important');                }
+                    authorEditorModal.style.setProperty('display', 'none', 'important');
+                }
             });
         }
     }
@@ -3030,7 +3505,7 @@ async function loadComicPagesIntoEditor(bookId) {
     pages.forEach((page) => {
         const card = document.createElement('div');
         card.style.cssText = 'border: 1px solid #333; border-radius: 8px; padding: 6px; text-align: center;';
-      card.innerHTML = `
+        card.innerHTML = `
   <img src="${page.image_url}" alt="Page ${page.page_number}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 4px;" />
   <div style="font-size: 12px; margin: 6px 0;">Page ${page.page_number}</div>
   <button
@@ -3087,21 +3562,21 @@ document.getElementById('btnAddComicPages')?.addEventListener('click', async () 
             .from('comic-pages')
             .getPublicUrl(uniquePath);
 
-      const { data: insertedPage, error: insertErr } = await activeSupabase
-  .from('comic_pages')
-  .insert({
-    book_id: bookId,
-    chapter_number: 1,
-    page_number: nextPageNum,
-    image_url: pubData.publicUrl,
-    created_at: new Date().toISOString()
-  })
-  .select()
-  .single();
+        const { data: insertedPage, error: insertErr } = await activeSupabase
+            .from('comic_pages')
+            .insert({
+                book_id: bookId,
+                chapter_number: 1,
+                page_number: nextPageNum,
+                image_url: pubData.publicUrl,
+                created_at: new Date().toISOString()
+            })
+            .select()
+            .single();
 
-if (insertErr) {
-  console.error('Insert error:', insertErr);
-}
+        if (insertErr) {
+            console.error('Insert error:', insertErr);
+        }
 
         nextPageNum++;
     }
@@ -3111,56 +3586,56 @@ if (insertErr) {
 });
 
 if (!window.__comicDeleteBound) {
-  window.__comicDeleteBound = true;
+    window.__comicDeleteBound = true;
 
-  document.addEventListener('click', async (e) => {
-    const btn = e.target.closest('.delete-comic-page-btn');
-    if (!btn) return;
+    document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.delete-comic-page-btn');
+        if (!btn) return;
 
-    e.preventDefault();
-    e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
 
-    const bookId = activeEditingWorkId || window.activeEditingWorkId;
-    const pageId = btn.dataset.pageId;
-    const pageNumber = btn.dataset.pageNumber;
+        const bookId = activeEditingWorkId || window.activeEditingWorkId;
+        const pageId = btn.dataset.pageId;
+        const pageNumber = btn.dataset.pageNumber;
 
-    if (!bookId || (!pageId && !pageNumber)) {
-      alert('Missing page ID—cannot delete.');
-      return;
-    }
+        if (!bookId || (!pageId && !pageNumber)) {
+            alert('Missing page ID—cannot delete.');
+            return;
+        }
 
-    btn.disabled = true;
-    btn.textContent = 'Deleting...';
+        btn.disabled = true;
+        btn.textContent = 'Deleting...';
 
-    const activeSupabase = window.supabaseClient || supabaseClient;
+        const activeSupabase = window.supabaseClient || supabaseClient;
 
-    let query = activeSupabase.from('comic_pages').delete();
-    if (pageId) {
-      query = query.eq('id', pageId);
-    } else {
-      query = query.eq('book_id', bookId).eq('page_number', Number(pageNumber));
-    }
+        let query = activeSupabase.from('comic_pages').delete();
+        if (pageId) {
+            query = query.eq('id', pageId);
+        } else {
+            query = query.eq('book_id', bookId).eq('page_number', Number(pageNumber));
+        }
 
-    const { data: deletedRows, error } = await query.select();
+        const { data: deletedRows, error } = await query.select();
 
-    if (error) {
-      console.error('Supabase delete error:', error);
-      alert('Failed to delete page: ' + error.message);
-      btn.disabled = false;
-      btn.textContent = 'Delete';
-      return;
-    }
+        if (error) {
+            console.error('Supabase delete error:', error);
+            alert('Failed to delete page: ' + error.message);
+            btn.disabled = false;
+            btn.textContent = 'Delete';
+            return;
+        }
 
-    if (!deletedRows || deletedRows.length === 0) {
-      console.warn('Delete returned 0 rows—check Supabase RLS DELETE policy on comic_pages.');
-      alert('Delete blocked by database policy (0 rows removed).');
-      btn.disabled = false;
-      btn.textContent = 'Delete';
-      return;
-    }
+        if (!deletedRows || deletedRows.length === 0) {
+            console.warn('Delete returned 0 rows—check Supabase RLS DELETE policy on comic_pages.');
+            alert('Delete blocked by database policy (0 rows removed).');
+            btn.disabled = false;
+            btn.textContent = 'Delete';
+            return;
+        }
 
-    await loadComicPagesIntoEditor(bookId);
-  });
+        await loadComicPagesIntoEditor(bookId);
+    });
 }
 
 const projectModal = document.getElementById('projectHelpModal');
@@ -3549,8 +4024,8 @@ function showHelpSupportModal() {
         <!-- FAQ Section -->
         <div style="font-size:14px; color:#ddd; display:flex; flex-direction:column; gap:16px;">
           <div>
-            <strong style="color:#fff; display:block; margin-bottom:4px;">📚 How do I save a story?</strong>
-            <p style="margin:0; color:#aaa; font-size:13px;">Click the bookmark icon while reading any chapter. It will automatically save your spot and add the story to your <strong>My Reading List</strong> drawer.</p>
+            <strong style="color:#fff; display:block; margin-bottom:4px;">❤️ How do I save a story?</strong>
+            <p style="margin:0; color:#aaa; font-size:13px;">You have two ways to save: click the <strong style="color:#ddd;">Save</strong> icon on any book card or details page to add it to your <strong style="color:#ddd;">Saved Books</strong> list to read or buy later, or click the <strong style="color:#ddd;">Bookmark</strong> icon while reading a chapter to save your exact spot to your <strong style="color:#ddd;">Reading List</strong> and pick up right where you left off.</p>
           </div>
 
           <div>
@@ -3563,13 +4038,20 @@ function showHelpSupportModal() {
             <p style="margin:0; color:#aaa; font-size:13px;">Yes! Open the <strong>Reader Preferences</strong> menu from the sidebar to customize your font style, text size, and line spacing.</p>
           </div>
 
+          <div>
+            <strong style="color:#fff; display:block; margin-bottom:4px;">📚 Where can I find my purchased books?</strong>
+             <p style="margin:0; color:#aaa; font-size:13px;">Open the side navigation bar, select <strong style="color:#ddd;">Profile &amp; Settings</strong>, and scroll down to <strong style="color:#ddd;">View My Purchased Books</strong>. Every book you've bought stays safely saved there—even if an author archives or unpublishes a title and it no longer appears on the main feed, you will still have permanent access to it in your purchased library.</p>
+          </div>
+
+          <div>
+
          <div style="background:#2a2a3c; padding:12px; border-radius:8px; margin-top:8px;">
-  <strong style="color:#fff; display:block; margin-bottom:4px;">Need further assistance?</strong>
-  <p style="margin:0; color:#aaa; font-size:13px;">
-    If you encounter any bugs or payment issues, reach out to support at 
-    <a href="mailto:agbemileke18@gmail.com" style="color:#6366f1; font-weight:bold; text-decoration:underline;">agbemileke18@gmail.com</a>.
-  </p>
-</div>
+            <strong style="color:#fff; display:block; margin-bottom:4px;">Need further assistance?</strong>
+            <p style="margin:0; color:#aaa; font-size:13px;">
+              If you encounter any bugs or payment issues, reach out to support at
+              <a href="mailto:agbemileke18@gmail.com" style="color:#6366f1; font-weight:bold; text-decoration:underline;">agbemileke18@gmail.com</a>.
+             </p>
+        </div>
         </div>
 
         <!-- Close Button -->
@@ -4195,20 +4677,20 @@ if (comicFileInput) {
 const resourceModalForm = document.getElementById('resource-modal-form');
 
 function getBankNameFromCode(code, fallbackName = '') {
-  if (fallbackName && fallbackName !== code) {
-    return fallbackName;
-  }
-  if (!code) return '';
-
-  const bankSelect = document.getElementById('bank-code-input');
-  if (bankSelect) {
-    const matchingOption = Array.from(bankSelect.options).find(
-      (opt) => opt.value === String(code).trim()
-    );
-    if (matchingOption) {
-      return matchingOption.textContent.trim();
+    if (fallbackName && fallbackName !== code) {
+        return fallbackName;
     }
-  }
+    if (!code) return '';
 
-  return code;
+    const bankSelect = document.getElementById('bank-code-input');
+    if (bankSelect) {
+        const matchingOption = Array.from(bankSelect.options).find(
+            (opt) => opt.value === String(code).trim()
+        );
+        if (matchingOption) {
+            return matchingOption.textContent.trim();
+        }
+    }
+
+    return code;
 }
